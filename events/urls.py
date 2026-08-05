@@ -4,6 +4,7 @@ from .views import (
     EventCreateView,
     EventDetailView,
     EventListView,
+    EventRegistrationView,
 )
 
 
@@ -21,4 +22,10 @@ urlpatterns = [
         EventDetailView.as_view(),
         name="event-detail",
     ),
+
+    path(
+    "<int:pk>/register/",
+    EventRegistrationView.as_view(),
+    name="event-register",
+),
 ]

@@ -17,6 +17,20 @@ from .serializers import (
     EventSerializer,
 )
 
+from django.shortcuts import get_object_or_404
+from django.utils import timezone
+
+from rest_framework import status
+from rest_framework.permissions import IsAuthenticated
+from rest_framework.response import Response
+from rest_framework.views import APIView
+
+from accounts.models import User
+from volunteering.models import VolunteerProfile
+
+from .models import Event, Registration
+from .serializers import RegistrationSerializer
+
 
 class EventListView(ListAPIView):
     serializer_class = EventSerializer
@@ -66,4 +80,98 @@ class EventCreateView(CreateAPIView):
         serializer.save(
             ngo=ngo,
             created_by=user,
+        )
+
+class EventRegistrationView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, pk):
+        user = request.user
+
+        # Only volunteers can register.
+        if user.role != User.Role.VOLUNTEER:
+            return Response(
+                {
+                    "detail": (
+                        "Only volunteers can register for events."
+                    )
+                },
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        # The volunteer user must have a VolunteerProfile.
+        try:
+            volunteer_profile = user.volunteer_profile
+        except VolunteerProfile.DoesNotExist:
+            return Response(
+                {
+                    "detail": (
+                        "Create a volunteer profile before "
+                        "registering for an event."
+                    )
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        event = get_object_or_404(Event, pk=pk)
+
+        # Registration is allowed only for open events.
+        if event.status != Event.Status.OPEN:
+            return Response(
+                {
+                    "detail": (
+                        "This event is not open for registration."
+                    )
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        # Prevent registration after the deadline.
+        if timezone.now() >= event.registration_deadline:
+            return Response(
+                {
+                    "detail": (
+                        "The registration deadline has passed."
+                    )
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        # Prevent duplicate registration.
+        already_registered = Registration.objects.filter(
+            event=event,
+            volunteer=volunteer_profile,
+        ).exists()
+
+        if already_registered:
+            return Response(
+                {
+                    "detail": (
+                        "You have already registered for this event."
+                    )
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        # Stop registration when all places are already approved.
+        approved_count = event.registrations.filter(
+            status=Registration.Status.APPROVED,
+        ).count()
+
+        if approved_count >= event.volunteer_capacity:
+            return Response(
+                {
+                    "detail": "This event has reached its capacity."
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        registration = Registration.objects.create(
+            event=event,
+            volunteer=volunteer_profile,
+        )
+
+        return Response(
+            RegistrationSerializer(registration).data,
+            status=status.HTTP_201_CREATED,
         )

@@ -1,6 +1,6 @@
 from rest_framework import serializers
 
-from .models import Event
+from .models import Event, Registration
 from volunteering.models import Skill
 
 
@@ -94,3 +94,30 @@ class EventCreateSerializer(serializers.ModelSerializer):
             )
 
         return attrs
+
+class RegistrationSerializer(serializers.ModelSerializer):
+    event_title = serializers.CharField(
+        source="event.title",
+        read_only=True,
+    )
+
+    volunteer_username = serializers.CharField(
+        source="volunteer.user.username",
+        read_only=True,
+    )
+
+    class Meta:
+        model = Registration
+        fields = [
+            "id",
+            "event",
+            "event_title",
+            "volunteer",
+            "volunteer_username",
+            "status",
+            "registered_at",
+            "attendance_status",
+            "hours_earned",
+        ]
+
+        read_only_fields = fields
