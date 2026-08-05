@@ -1,4 +1,8 @@
+from decimal import Decimal
+
 from django.conf import settings
+from django.core.exceptions import ValidationError
+from django.core.validators import MinValueValidator
 from django.db import models
 
 from organizations.models import NGO
@@ -21,7 +25,7 @@ class Event(models.Model):
 
     created_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,
-        on_delete=models.CASCADE,
+        on_delete=models.PROTECT,
         related_name="created_events",
     )
 
@@ -33,7 +37,9 @@ class Event(models.Model):
     end_date = models.DateTimeField()
     registration_deadline = models.DateTimeField()
 
-    volunteer_capacity = models.PositiveIntegerField()
+    volunteer_capacity = models.PositiveIntegerField(
+    validators=[MinValueValidator(1)]
+)
 
     required_skills = models.ManyToManyField(
         Skill,
@@ -47,7 +53,31 @@ class Event(models.Model):
         default=Status.DRAFT,
     )
 
-    def __str__(self):
+def clean(self):
+    errors = {}
+
+    if (
+        self.start_date
+        and self.end_date
+        and self.end_date <= self.start_date
+    ):
+        errors["end_date"] = (
+            "The event end date must be after the start date."
+        )
+
+    if (
+        self.registration_deadline
+        and self.start_date
+        and self.registration_deadline >= self.start_date
+    ):
+        errors["registration_deadline"] = (
+            "The registration deadline must be before the event starts."
+        )
+
+    if errors:
+        raise ValidationError(errors)
+
+def __str__(self):
         return self.title
 
 class Registration(models.Model):
@@ -57,6 +87,12 @@ class Registration(models.Model):
         REJECTED = "REJECTED", "Rejected"
         CANCELLED = "CANCELLED", "Cancelled"
         COMPLETED = "COMPLETED", "Completed"
+
+    class AttendanceStatus(models.TextChoices):
+        NOT_MARKED = "NOT_MARKED", "Not Marked"
+        PRESENT = "PRESENT", "Present"
+        ABSENT = "ABSENT", "Absent"
+        EXCUSED = "EXCUSED", "Excused"
 
     event = models.ForeignKey(
         Event,
@@ -79,8 +115,19 @@ class Registration(models.Model):
     registered_at = models.DateTimeField(auto_now_add=True)
     approved_at = models.DateTimeField(null=True, blank=True)
 
-    attendance_marked = models.BooleanField(default=False)
-    hours_earned = models.PositiveIntegerField(default=0)
+    attendance_status = models.CharField(
+        max_length=20,
+        choices=AttendanceStatus.choices,
+        default=AttendanceStatus.NOT_MARKED,
+    )
+
+    hours_earned = models.DecimalField(
+        max_digits=6,
+        decimal_places=2,
+        default=Decimal("0.00"),
+        validators=[MinValueValidator(Decimal("0.00"))],
+    )       
+    
 
     class Meta:
         constraints = [
@@ -96,3 +143,60 @@ class Registration(models.Model):
             f"{self.event} - "
             f"{self.get_status_display()}"
         )
+
+class Team(models.Model):
+    event = models.ForeignKey(
+        Event,
+        on_delete=models.CASCADE,
+        related_name="teams",
+    )
+
+    name = models.CharField(max_length=100)
+
+    leader = models.ForeignKey(
+        VolunteerProfile,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="led_teams",
+    )
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["event", "name"],
+                name="unique_team_name_per_event",
+            )
+        ]
+
+    def __str__(self):
+        return f"{self.name} - {self.event.title}"
+
+class TeamMembership(models.Model):
+    team = models.ForeignKey(
+        Team,
+        on_delete=models.CASCADE,
+        related_name="memberships",
+    )
+
+    volunteer = models.ForeignKey(
+        VolunteerProfile,
+        on_delete=models.CASCADE,
+        related_name="team_memberships",
+    )
+
+    assigned_task = models.CharField(
+        max_length=250,
+        blank=True,
+    )
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["team", "volunteer"],
+                name="unique_team_volunteer",
+            )
+        ]
+
+    def __str__(self):
+        return f"{self.volunteer} - {self.team}"
