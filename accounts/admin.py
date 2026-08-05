@@ -4,4 +4,40 @@ from django.contrib.auth.admin import UserAdmin
 from .models import User
 
 
-admin.site.register(User, UserAdmin)
+@admin.register(User)
+class CustomUserAdmin(UserAdmin):
+    fieldsets = UserAdmin.fieldsets + (
+        (
+            "Platform information",
+            {
+                "fields": (
+                    "role",
+                    "phone",
+                )
+            },
+        ),
+    )
+
+    add_fieldsets = UserAdmin.add_fieldsets + (
+        (
+            "Platform information",
+            {
+                "fields": (
+                    "role",
+                    "phone",
+                )
+            },
+        ),
+    )
+
+    list_display = (
+        "username",
+        "email",
+        "role",
+        "is_staff",
+        "is_active",
+    )
+
+    list_filter = UserAdmin.list_filter + (
+        "role",
+    )
