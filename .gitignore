@@ -33,3 +33,21 @@ htmlcov/
 # Operating system files
 .DS_Store
 Thumbs.db
+
+# node modules for frontend 
+node_modules/
+dist/
+
+# Logs
+ngo-frontend/logs
+ngo-frontend/*.log
+ngo-frontend/npm-debug.log*
+ngo-frontend/yarn-debug.log*
+ngo-frontend/yarn-error.log*
+ngo-frontend/pnpm-debug.log*
+ngo-frontend/lerna-debug.log*
+
+ngo-frontend/node_modules
+ngo-frontend/dist
+ngo-frontend/dist-ssr
+ngo-frontend/*.local
