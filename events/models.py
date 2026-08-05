@@ -38,8 +38,8 @@ class Event(models.Model):
     registration_deadline = models.DateTimeField()
 
     volunteer_capacity = models.PositiveIntegerField(
-    validators=[MinValueValidator(1)]
-)
+        validators=[MinValueValidator(1)]
+    )
 
     required_skills = models.ManyToManyField(
         Skill,
@@ -53,31 +53,31 @@ class Event(models.Model):
         default=Status.DRAFT,
     )
 
-def clean(self):
-    errors = {}
+    def clean(self):
+        errors = {}
 
-    if (
-        self.start_date
-        and self.end_date
-        and self.end_date <= self.start_date
-    ):
-        errors["end_date"] = (
-            "The event end date must be after the start date."
-        )
+        if (
+            self.start_date
+            and self.end_date
+            and self.end_date <= self.start_date
+        ):
+            errors["end_date"] = (
+                "The event end date must be after the start date."
+            )
 
-    if (
-        self.registration_deadline
-        and self.start_date
-        and self.registration_deadline >= self.start_date
-    ):
-        errors["registration_deadline"] = (
-            "The registration deadline must be before the event starts."
-        )
+        if (
+            self.registration_deadline
+            and self.start_date
+            and self.registration_deadline >= self.start_date
+        ):
+            errors["registration_deadline"] = (
+                "The registration deadline must be before the event starts."
+            )
 
-    if errors:
-        raise ValidationError(errors)
+        if errors:
+            raise ValidationError(errors)
 
-def __str__(self):
+    def __str__(self):
         return self.title
 
 class Registration(models.Model):
