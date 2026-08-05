@@ -116,6 +116,7 @@ class RegistrationSerializer(serializers.ModelSerializer):
             "volunteer_username",
             "status",
             "registered_at",
+            "approved_at",
             "attendance_status",
             "hours_earned",
         ]

@@ -1,26 +1,13 @@
-from rest_framework.exceptions import (
-    PermissionDenied,
-    ValidationError,
-)
+from django.shortcuts import get_object_or_404
+from django.utils import timezone
+
+from rest_framework import status
+from rest_framework.exceptions import PermissionDenied, ValidationError
 from rest_framework.generics import (
     CreateAPIView,
     ListAPIView,
     RetrieveAPIView,
 )
-from rest_framework.permissions import IsAuthenticated
-
-from accounts.models import User
-
-from .models import Event
-from .serializers import (
-    EventCreateSerializer,
-    EventSerializer,
-)
-
-from django.shortcuts import get_object_or_404
-from django.utils import timezone
-
-from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -29,7 +16,18 @@ from accounts.models import User
 from volunteering.models import VolunteerProfile
 
 from .models import Event, Registration
-from .serializers import RegistrationSerializer
+from .serializers import (
+    EventCreateSerializer,
+    EventSerializer,
+    RegistrationSerializer,
+)
+
+def user_can_manage_event(user, event):
+    """Return True when the user administers the event's NGO."""
+    return (
+        user.role == User.Role.NGO_ADMIN
+        and event.ngo.administrator_id == user.id
+    )
 
 
 class EventListView(ListAPIView):
@@ -174,4 +172,164 @@ class EventRegistrationView(APIView):
         return Response(
             RegistrationSerializer(registration).data,
             status=status.HTTP_201_CREATED,
+        )
+
+class EventRegistrationListView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, event_id):
+        event = get_object_or_404(
+            Event.objects.select_related("ngo"),
+            pk=event_id,
+        )
+
+        if not user_can_manage_event(request.user, event):
+            return Response(
+                {
+                    "detail": (
+                        "You do not have permission to view "
+                        "registrations for this event."
+                    )
+                },
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        registrations = (
+            event.registrations
+            .select_related("volunteer__user", "event")
+            .order_by("-registered_at")
+        )
+
+        serializer = RegistrationSerializer(
+            registrations,
+            many=True,
+        )
+
+        return Response(
+            serializer.data,
+            status=status.HTTP_200_OK,
+        )
+
+class RegistrationApproveView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, pk):
+        registration = get_object_or_404(
+            Registration.objects.select_related(
+                "event__ngo",
+                "volunteer__user",
+            ),
+            pk=pk,
+        )
+
+        event = registration.event
+
+        if not user_can_manage_event(request.user, event):
+            return Response(
+                {
+                    "detail": (
+                        "You do not have permission to approve "
+                        "this registration."
+                    )
+                },
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        if registration.status != Registration.Status.PENDING:
+            return Response(
+                {
+                    "detail": (
+                        "Only pending registrations can be approved."
+                    )
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        approved_count = event.registrations.filter(
+            status=Registration.Status.APPROVED,
+        ).count()
+
+        if approved_count >= event.volunteer_capacity:
+            return Response(
+                {
+                    "detail": (
+                        "The event has reached its volunteer capacity."
+                    )
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        registration.status = Registration.Status.APPROVED
+        registration.approved_at = timezone.now()
+
+        registration.save(
+            update_fields=[
+                "status",
+                "approved_at",
+            ]
+        )
+
+        return Response(
+            {
+                "message": "Registration approved successfully.",
+                "registration": RegistrationSerializer(
+                    registration
+                ).data,
+            },
+            status=status.HTTP_200_OK,
+        )
+
+class RegistrationRejectView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, pk):
+        registration = get_object_or_404(
+            Registration.objects.select_related(
+                "event__ngo",
+                "volunteer__user",
+            ),
+            pk=pk,
+        )
+
+        event = registration.event
+
+        if not user_can_manage_event(request.user, event):
+            return Response(
+                {
+                    "detail": (
+                        "You do not have permission to reject "
+                        "this registration."
+                    )
+                },
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        if registration.status != Registration.Status.PENDING:
+            return Response(
+                {
+                    "detail": (
+                        "Only pending registrations can be rejected."
+                    )
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        registration.status = Registration.Status.REJECTED
+        registration.approved_at = None
+
+        registration.save(
+            update_fields=[
+                "status",
+                "approved_at",
+            ]
+        )
+
+        return Response(
+            {
+                "message": "Registration rejected successfully.",
+                "registration": RegistrationSerializer(
+                    registration
+                ).data,
+            },
+            status=status.HTTP_200_OK,
         )
