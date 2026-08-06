@@ -1,3 +1,5 @@
+import { Link } from "react-router-dom";
+
 type EventCardProps = {
   title: string;
   date: string;
@@ -29,9 +31,12 @@ export default function EventCard({
         {description}
       </p>
 
-      <button className="mt-6 rounded-lg bg-blue-600 px-4 py-2 font-medium text-white transition hover:bg-blue-700">
-        View Details
-      </button>
+        <Link
+          to="/dashboard/events/1"
+          className="mt-6 inline-block rounded-lg bg-blue-600 px-4 py-2 font-medium text-white transition hover:bg-blue-700"
+        >
+          View Details
+        </Link>
     </div>
   );
 }
