@@ -1,19 +1,20 @@
 import api from "../services/api";
+import type { LoginResponse, User } from "../types/auth";
 
-export const login = async (
+export async function login(
   username: string,
-  password: string
-) => {
-  const response = await api.post("/auth/login/", {
+  password: string,
+): Promise<LoginResponse> {
+  const response = await api.post<LoginResponse>("/auth/login/", {
     username,
     password,
   });
 
   return response.data;
-};
+}
 
-export const getCurrentUser = async () => {
-  const response = await api.get("/auth/me/");
+export async function getCurrentUser(): Promise<User> {
+  const response = await api.get<User>("/auth/me/");
 
   return response.data;
-};
+}
