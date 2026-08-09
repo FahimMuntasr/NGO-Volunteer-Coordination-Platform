@@ -4,6 +4,7 @@ from io import BytesIO
 from django.core.files.base import ContentFile
 from reportlab.pdfgen import canvas
 
+# PRODUCT INTERFACE
 
 class DocumentGenerator(ABC):
 
@@ -11,6 +12,7 @@ class DocumentGenerator(ABC):
     def generate(self, context):
         pass
 
+# CONCRETE PRODUCT 1
 
 class ParticipationCertificateGenerator(DocumentGenerator):
 
@@ -23,13 +25,15 @@ class ParticipationCertificateGenerator(DocumentGenerator):
 
         pdf = canvas.Canvas(buffer)
 
-        pdf.setFont("Helvetica-Bold", 22)
+        # Title
+        pdf.setFont("Helvetica-Bold", 24)
         pdf.drawCentredString(
             300,
             750,
             "Certificate of Participation",
         )
 
+        # Main text
         pdf.setFont("Helvetica", 14)
         pdf.drawCentredString(
             300,
@@ -42,7 +46,7 @@ class ParticipationCertificateGenerator(DocumentGenerator):
             or volunteer.user.username
         )
 
-        pdf.setFont("Helvetica-Bold", 18)
+        pdf.setFont("Helvetica-Bold", 20)
         pdf.drawCentredString(
             300,
             650,
@@ -53,19 +57,28 @@ class ParticipationCertificateGenerator(DocumentGenerator):
         pdf.drawCentredString(
             300,
             600,
-            f"For participating in {event.title}",
+            "For successfully participating in",
         )
 
+        pdf.setFont("Helvetica-Bold", 16)
         pdf.drawCentredString(
             300,
-            570,
+            565,
+            event.title,
+        )
+
+        pdf.setFont("Helvetica", 13)
+        pdf.drawCentredString(
+            300,
+            525,
             f"Organized by {event.ngo.name}",
         )
 
+        # Verification code
         pdf.setFont("Helvetica", 10)
         pdf.drawCentredString(
             300,
-            500,
+            460,
             f"Verification Code: {verification_code}",
         )
 
@@ -75,6 +88,7 @@ class ParticipationCertificateGenerator(DocumentGenerator):
 
         return ContentFile(buffer.read())
 
+# CONCRETE PRODUCT 2
 
 class AttendanceReportGenerator(DocumentGenerator):
 
@@ -90,12 +104,19 @@ class AttendanceReportGenerator(DocumentGenerator):
         pdf.drawString(
             50,
             780,
-            f"Attendance Report - {event.title}",
+            "Attendance Report",
         )
 
-        y = 730
+        pdf.setFont("Helvetica-Bold", 14)
+        pdf.drawString(
+            50,
+            750,
+            event.title,
+        )
 
         pdf.setFont("Helvetica", 12)
+
+        y_position = 700
 
         for registration in registrations:
             volunteer_name = (
@@ -103,17 +124,25 @@ class AttendanceReportGenerator(DocumentGenerator):
                 or registration.volunteer.user.username
             )
 
+            attendance = registration.attendance_status
+
             line = (
-                f"{volunteer_name} - "
-                f"{registration.attendance_status}"
+                f"{volunteer_name} - {attendance}"
             )
 
-            pdf.drawString(50, y, line)
-            y -= 25
+            pdf.drawString(
+                50,
+                y_position,
+                line,
+            )
 
-            if y < 50:
+            y_position -= 25
+
+            # Start another PDF page if necessary
+            if y_position < 50:
                 pdf.showPage()
-                y = 780
+                pdf.setFont("Helvetica", 12)
+                y_position = 780
 
         pdf.save()
 
