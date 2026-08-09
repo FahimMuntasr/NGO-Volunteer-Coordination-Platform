@@ -49,6 +49,18 @@ export default function Sidebar() {
         >
           Logout
         </NavLink>
+        <NavLink
+          to="/dashboard/my-events"
+          className={({ isActive }) =>
+            `rounded-md px-3 py-2 transition ${
+              isActive
+                ? "bg-blue-600 text-white"
+                : "text-gray-700 hover:bg-gray-200"
+            }`
+          }
+        >
+          My Events
+        </NavLink>
       </nav>
     </aside>
   );

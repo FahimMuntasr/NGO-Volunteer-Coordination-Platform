@@ -8,6 +8,7 @@ import Events from "../pages/Events";
 import Profile from "../pages/Profile";
 import NotFound from "../pages/NotFound";
 import EventDetails from "../pages/EventDetails";
+import MyEvents from "../pages/MyEvents";
 
 export default function AppRoutes() {
     return (
@@ -23,7 +24,7 @@ export default function AppRoutes() {
                 <Route path="/dashboard/events/:id" element={<EventDetails />} />
 
                 <Route path="*" element={<NotFound />} />
-                
+                <Route path="/dashboard/my-events" element={<MyEvents />} />
             </Routes>
         </BrowserRouter>
     );
