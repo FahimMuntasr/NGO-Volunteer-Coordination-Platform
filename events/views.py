@@ -7,6 +7,7 @@ from rest_framework.generics import (
     CreateAPIView,
     ListAPIView,
     RetrieveAPIView,
+    UpdateAPIView,
 )
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
@@ -15,11 +16,14 @@ from rest_framework.views import APIView
 from accounts.models import User
 from volunteering.models import VolunteerProfile
 
-from .models import Event, Registration
+from .models import Event, Registration, Team, TeamMembership
 from .serializers import (
     EventCreateSerializer,
     EventSerializer,
+    EventUpdateSerializer,
     RegistrationSerializer,
+    TeamSerializer,
+    TeamMembershipSerializer,
 )
 
 def user_can_manage_event(user, event):
@@ -29,6 +33,14 @@ def user_can_manage_event(user, event):
         and event.ngo.administrator_id == user.id
     )
 
+def user_can_coordinate_event(user, event):
+    return (
+        user_can_manage_event(user, event)
+        or (
+            user.role == User.Role.COORDINATOR
+            and event.coordinator_id == user.id
+        )
+    )
 
 class EventListView(ListAPIView):
     serializer_class = EventSerializer
@@ -79,6 +91,24 @@ class EventCreateView(CreateAPIView):
             ngo=ngo,
             created_by=user,
         )
+
+class EventUpdateView(UpdateAPIView):
+    queryset = Event.objects.select_related("ngo")
+    serializer_class = EventUpdateSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_object(self):
+        event = super().get_object()
+
+        if not user_can_manage_event(
+            self.request.user,
+            event,
+        ):
+            raise PermissionDenied(
+                "Only this NGO's administrator can edit this event."
+            )
+
+        return event
 
 class EventRegistrationView(APIView):
     permission_classes = [IsAuthenticated]
@@ -183,7 +213,7 @@ class EventRegistrationListView(APIView):
             pk=event_id,
         )
 
-        if not user_can_manage_event(request.user, event):
+        if not user_can_coordinate_event(request.user, event):
             return Response(
                 {
                     "detail": (
@@ -330,6 +360,342 @@ class RegistrationRejectView(APIView):
                 "registration": RegistrationSerializer(
                     registration
                 ).data,
+            },
+            status=status.HTTP_200_OK,
+        )
+
+class AssignCoordinatorView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, event_id):
+        event = get_object_or_404(
+            Event.objects.select_related("ngo"),
+            pk=event_id,
+        )
+
+        if not user_can_manage_event(request.user, event):
+            return Response(
+                {
+                    "detail": (
+                        "Only this NGO's administrator can "
+                        "assign a coordinator."
+                    )
+                },
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        coordinator_id = request.data.get("coordinator_id")
+
+        coordinator = get_object_or_404(
+            User,
+            pk=coordinator_id,
+            role=User.Role.COORDINATOR,
+        )
+
+        event.coordinator = coordinator
+        event.save(update_fields=["coordinator"])
+
+        return Response(
+            {
+                "message": "Coordinator assigned successfully.",
+                "event_id": event.id,
+                "coordinator": {
+                    "id": coordinator.id,
+                    "username": coordinator.username,
+                },
+            },
+            status=status.HTTP_200_OK,
+        )
+
+class EventTeamListCreateView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, event_id):
+        event = get_object_or_404(Event, pk=event_id)
+
+        teams = (
+            event.teams
+            .select_related("leader__user")
+            .prefetch_related("memberships__volunteer__user")
+        )
+
+        return Response(
+            TeamSerializer(teams, many=True).data,
+            status=status.HTTP_200_OK,
+        )
+
+    def post(self, request, event_id):
+        event = get_object_or_404(
+            Event.objects.select_related("ngo"),
+            pk=event_id,
+        )
+
+        if not user_can_coordinate_event(request.user, event):
+            return Response(
+                {"detail": "You cannot create teams for this event."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        serializer = TeamSerializer(data=request.data)
+
+        if serializer.is_valid():
+            team = serializer.save(event=event)
+
+            return Response(
+                TeamSerializer(team).data,
+                status=status.HTTP_201_CREATED,
+            )
+
+        return Response(
+            serializer.errors,
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+class AddTeamMemberView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, team_id):
+        team = get_object_or_404(
+            Team.objects.select_related("event__ngo"),
+            pk=team_id,
+        )
+
+        event = team.event
+
+        if not user_can_coordinate_event(request.user, event):
+            return Response(
+                {"detail": "You cannot manage this team."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        volunteer_id = request.data.get("volunteer_id")
+        assigned_task = request.data.get(
+            "assigned_task",
+            "",
+        )
+
+        registration = get_object_or_404(
+            Registration,
+            event=event,
+            volunteer_id=volunteer_id,
+            status=Registration.Status.APPROVED,
+        )
+
+        already_assigned = TeamMembership.objects.filter(
+            team__event=event,
+            volunteer=registration.volunteer,
+        ).exists()
+
+        if already_assigned:
+            return Response(
+                {
+                    "detail": (
+                        "This volunteer is already assigned "
+                        "to a team for this event."
+                    )
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        membership = TeamMembership.objects.create(
+            team=team,
+            volunteer=registration.volunteer,
+            assigned_task=assigned_task,
+        )
+
+        return Response(
+            TeamMembershipSerializer(membership).data,
+            status=status.HTTP_201_CREATED,
+        )
+
+class RegistrationAttendanceView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, pk):
+        registration = get_object_or_404(
+            Registration.objects.select_related(
+                "event__ngo"
+            ),
+            pk=pk,
+        )
+
+        event = registration.event
+
+        if not user_can_coordinate_event(request.user, event):
+            return Response(
+                {
+                    "detail": (
+                        "You cannot mark attendance "
+                        "for this event."
+                    )
+                },
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        if registration.status != Registration.Status.APPROVED:
+            return Response(
+                {
+                    "detail": (
+                        "Attendance can only be marked "
+                        "for approved volunteers."
+                    )
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        attendance_status = request.data.get(
+            "attendance_status"
+        )
+
+        allowed_statuses = [
+            Registration.AttendanceStatus.PRESENT,
+            Registration.AttendanceStatus.ABSENT,
+            Registration.AttendanceStatus.EXCUSED,
+        ]
+
+        if attendance_status not in allowed_statuses:
+            return Response(
+                {
+                    "detail": (
+                        "Attendance must be PRESENT, "
+                        "ABSENT, or EXCUSED."
+                    )
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        registration.attendance_status = attendance_status
+
+        registration.save(
+            update_fields=["attendance_status"]
+        )
+
+        return Response(
+            RegistrationSerializer(registration).data,
+            status=status.HTTP_200_OK,
+        )
+
+class EventOpenView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, event_id):
+        event = get_object_or_404(
+            Event.objects.select_related("ngo"),
+            pk=event_id,
+        )
+
+        if not user_can_manage_event(request.user, event):
+            return Response(
+                {
+                    "detail": (
+                        "You do not have permission to open this event."
+                    )
+                },
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        if event.status != Event.Status.DRAFT:
+            return Response(
+                {
+                    "detail": (
+                        "Only draft events can be opened."
+                    )
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        event.status = Event.Status.OPEN
+        event.save(update_fields=["status"])
+
+        return Response(
+            {
+                "message": "Event opened successfully.",
+                "event": EventSerializer(event).data,
+            },
+            status=status.HTTP_200_OK,
+        )
+
+
+class EventStartView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, event_id):
+        event = get_object_or_404(
+            Event.objects.select_related("ngo"),
+            pk=event_id,
+        )
+
+        if not user_can_manage_event(request.user, event):
+            return Response(
+                {
+                    "detail": (
+                        "You do not have permission to start this event."
+                    )
+                },
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        if event.status != Event.Status.OPEN:
+            return Response(
+                {
+                    "detail": (
+                        "Only open events can be started."
+                    )
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        event.status = Event.Status.IN_PROGRESS
+        event.save(update_fields=["status"])
+
+        return Response(
+            {
+                "message": "Event started successfully.",
+                "event": EventSerializer(event).data,
+            },
+            status=status.HTTP_200_OK,
+        )
+
+
+class EventCancelView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, event_id):
+        event = get_object_or_404(
+            Event.objects.select_related("ngo"),
+            pk=event_id,
+        )
+
+        if not user_can_manage_event(request.user, event):
+            return Response(
+                {
+                    "detail": (
+                        "You do not have permission to cancel this event."
+                    )
+                },
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        if event.status not in [
+            Event.Status.DRAFT,
+            Event.Status.OPEN,
+        ]:
+            return Response(
+                {
+                    "detail": (
+                        "Only draft or open events can be cancelled."
+                    )
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        event.status = Event.Status.CANCELLED
+        event.save(update_fields=["status"])
+
+        return Response(
+            {
+                "message": "Event cancelled successfully.",
+                "event": EventSerializer(event).data,
             },
             status=status.HTTP_200_OK,
         )

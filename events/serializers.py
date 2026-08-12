@@ -1,6 +1,6 @@
 from rest_framework import serializers
 
-from .models import Event, Registration
+from .models import Event, Registration, Team, TeamMembership
 from volunteering.models import Skill
 
 
@@ -56,7 +56,7 @@ class EventCreateSerializer(serializers.ModelSerializer):
             "status",
         ]
 
-        read_only_fields = ["id"]
+        read_only_fields = ["id","status"]
 
     def validate(self, attrs):
         start_date = attrs.get("start_date")
@@ -95,6 +95,66 @@ class EventCreateSerializer(serializers.ModelSerializer):
 
         return attrs
 
+class EventUpdateSerializer(serializers.ModelSerializer):
+    required_skill_ids = serializers.PrimaryKeyRelatedField(
+        queryset=Skill.objects.all(),
+        many=True,
+        write_only=True,
+        source="required_skills",
+        required=False,
+    )
+
+    class Meta:
+        model = Event
+        fields = [
+            "title",
+            "description",
+            "location",
+            "start_date",
+            "end_date",
+            "registration_deadline",
+            "volunteer_capacity",
+            "required_skill_ids",
+        ]
+
+    def validate(self, attrs):
+        start_date = attrs.get(
+            "start_date",
+            self.instance.start_date,
+        )
+
+        end_date = attrs.get(
+            "end_date",
+            self.instance.end_date,
+        )
+
+        registration_deadline = attrs.get(
+            "registration_deadline",
+            self.instance.registration_deadline,
+        )
+
+        if end_date <= start_date:
+            raise serializers.ValidationError(
+                {
+                    "end_date": (
+                        "The end date must be after "
+                        "the start date."
+                    )
+                }
+            )
+
+        if registration_deadline >= start_date:
+            raise serializers.ValidationError(
+                {
+                    "registration_deadline": (
+                        "The registration deadline must "
+                        "be before the event starts."
+                    )
+                }
+            )
+
+        return attrs
+
 class RegistrationSerializer(serializers.ModelSerializer):
     event_title = serializers.CharField(
         source="event.title",
@@ -122,3 +182,42 @@ class RegistrationSerializer(serializers.ModelSerializer):
         ]
 
         read_only_fields = fields
+
+class TeamMembershipSerializer(serializers.ModelSerializer):
+    volunteer_username = serializers.CharField(
+        source="volunteer.user.username",
+        read_only=True,
+    )
+
+    class Meta:
+        model = TeamMembership
+        fields = [
+            "id",
+            "volunteer",
+            "volunteer_username",
+            "assigned_task",
+        ]
+
+
+class TeamSerializer(serializers.ModelSerializer):
+    leader_username = serializers.CharField(
+        source="leader.user.username",
+        read_only=True,
+    )
+
+    memberships = TeamMembershipSerializer(
+        many=True,
+        read_only=True,
+    )
+
+    class Meta:
+        model = Team
+        fields = [
+            "id",
+            "event",
+            "name",
+            "leader",
+            "leader_username",
+            "memberships",
+        ]
+        read_only_fields = ["event"]
