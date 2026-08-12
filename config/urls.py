@@ -9,7 +9,8 @@ urlpatterns = [
     path("api/events/", include("events.urls")),
     path("api/donations/", include("donations.urls")),
     path("api/certificates/", include("certificates.urls")),
-    path("api/volunteers/",include("volunteering.urls")),
+    path("api/volunteers/", include("volunteering.urls")),
+    path("api/organizations/",include("organizations.urls")),
 ]
 
 if settings.DEBUG:
