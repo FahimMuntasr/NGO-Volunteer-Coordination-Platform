@@ -1,6 +1,7 @@
 from rest_framework import serializers
 
 from .models import Skill, VolunteerProfile
+from events.models import Registration
 
 
 class SkillSerializer(serializers.ModelSerializer):
@@ -69,3 +70,40 @@ class VolunteerProfileSerializer(serializers.ModelSerializer):
             "total_hours",
             "completed_events",
         ]
+        
+class VolunteerHistorySerializer(serializers.ModelSerializer):
+    event_title = serializers.CharField(
+        source="event.title",
+        read_only=True,
+    )
+
+    ngo_name = serializers.CharField(
+        source="event.ngo.name",
+        read_only=True,
+    )
+
+    event_start_date = serializers.DateTimeField(
+        source="event.start_date",
+        read_only=True,
+    )
+
+    event_end_date = serializers.DateTimeField(
+        source="event.end_date",
+        read_only=True,
+    )
+
+    class Meta:
+        model = Registration
+        fields = [
+            "id",
+            "event",
+            "event_title",
+            "ngo_name",
+            "event_start_date",
+            "event_end_date",
+            "attendance_status",
+            "hours_earned",
+            "status",
+        ]
+
+        read_only_fields = fields
