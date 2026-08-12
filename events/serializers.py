@@ -95,6 +95,66 @@ class EventCreateSerializer(serializers.ModelSerializer):
 
         return attrs
 
+class EventUpdateSerializer(serializers.ModelSerializer):
+    required_skill_ids = serializers.PrimaryKeyRelatedField(
+        queryset=Skill.objects.all(),
+        many=True,
+        write_only=True,
+        source="required_skills",
+        required=False,
+    )
+
+    class Meta:
+        model = Event
+        fields = [
+            "title",
+            "description",
+            "location",
+            "start_date",
+            "end_date",
+            "registration_deadline",
+            "volunteer_capacity",
+            "required_skill_ids",
+        ]
+
+    def validate(self, attrs):
+        start_date = attrs.get(
+            "start_date",
+            self.instance.start_date,
+        )
+
+        end_date = attrs.get(
+            "end_date",
+            self.instance.end_date,
+        )
+
+        registration_deadline = attrs.get(
+            "registration_deadline",
+            self.instance.registration_deadline,
+        )
+
+        if end_date <= start_date:
+            raise serializers.ValidationError(
+                {
+                    "end_date": (
+                        "The end date must be after "
+                        "the start date."
+                    )
+                }
+            )
+
+        if registration_deadline >= start_date:
+            raise serializers.ValidationError(
+                {
+                    "registration_deadline": (
+                        "The registration deadline must "
+                        "be before the event starts."
+                    )
+                }
+            )
+
+        return attrs
+
 class RegistrationSerializer(serializers.ModelSerializer):
     event_title = serializers.CharField(
         source="event.title",

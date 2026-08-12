@@ -7,6 +7,7 @@ from rest_framework.generics import (
     CreateAPIView,
     ListAPIView,
     RetrieveAPIView,
+    UpdateAPIView,
 )
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
@@ -19,6 +20,7 @@ from .models import Event, Registration, Team, TeamMembership
 from .serializers import (
     EventCreateSerializer,
     EventSerializer,
+    EventUpdateSerializer,
     RegistrationSerializer,
     TeamSerializer,
     TeamMembershipSerializer,
@@ -89,6 +91,24 @@ class EventCreateView(CreateAPIView):
             ngo=ngo,
             created_by=user,
         )
+
+class EventUpdateView(UpdateAPIView):
+    queryset = Event.objects.select_related("ngo")
+    serializer_class = EventUpdateSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_object(self):
+        event = super().get_object()
+
+        if not user_can_manage_event(
+            self.request.user,
+            event,
+        ):
+            raise PermissionDenied(
+                "Only this NGO's administrator can edit this event."
+            )
+
+        return event
 
 class EventRegistrationView(APIView):
     permission_classes = [IsAuthenticated]

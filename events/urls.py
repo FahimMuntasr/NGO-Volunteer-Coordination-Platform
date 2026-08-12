@@ -12,6 +12,7 @@ from .views import (
     EventTeamListCreateView,
     AddTeamMemberView,
     RegistrationAttendanceView,
+    EventUpdateView,
 )
 
 
@@ -80,5 +81,11 @@ urlpatterns = [
         "registrations/<int:pk>/attendance/",
         RegistrationAttendanceView.as_view(),
         name="registration-attendance",
+    ),
+
+    path(
+        "<int:pk>/update/",
+        EventUpdateView.as_view(),
+        name="event-update",
     ),
 ]
