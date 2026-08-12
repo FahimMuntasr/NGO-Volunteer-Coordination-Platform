@@ -13,6 +13,9 @@ from .views import (
     AddTeamMemberView,
     RegistrationAttendanceView,
     EventUpdateView,
+    EventOpenView,
+    EventStartView,
+    EventCancelView,
 )
 
 
@@ -88,4 +91,21 @@ urlpatterns = [
         EventUpdateView.as_view(),
         name="event-update",
     ),
+    path(
+        "<int:event_id>/open/",
+        EventOpenView.as_view(),
+        name="event-open",
+    ),
+
+    path(
+        "<int:event_id>/start/",
+        EventStartView.as_view(),
+        name="event-start",
+    ),
+
+    path(
+        "<int:event_id>/cancel/",
+        EventCancelView.as_view(),
+        name="event-cancel",
+    ),    
 ]

@@ -574,3 +574,128 @@ class RegistrationAttendanceView(APIView):
             RegistrationSerializer(registration).data,
             status=status.HTTP_200_OK,
         )
+
+class EventOpenView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, event_id):
+        event = get_object_or_404(
+            Event.objects.select_related("ngo"),
+            pk=event_id,
+        )
+
+        if not user_can_manage_event(request.user, event):
+            return Response(
+                {
+                    "detail": (
+                        "You do not have permission to open this event."
+                    )
+                },
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        if event.status != Event.Status.DRAFT:
+            return Response(
+                {
+                    "detail": (
+                        "Only draft events can be opened."
+                    )
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        event.status = Event.Status.OPEN
+        event.save(update_fields=["status"])
+
+        return Response(
+            {
+                "message": "Event opened successfully.",
+                "event": EventSerializer(event).data,
+            },
+            status=status.HTTP_200_OK,
+        )
+
+
+class EventStartView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, event_id):
+        event = get_object_or_404(
+            Event.objects.select_related("ngo"),
+            pk=event_id,
+        )
+
+        if not user_can_manage_event(request.user, event):
+            return Response(
+                {
+                    "detail": (
+                        "You do not have permission to start this event."
+                    )
+                },
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        if event.status != Event.Status.OPEN:
+            return Response(
+                {
+                    "detail": (
+                        "Only open events can be started."
+                    )
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        event.status = Event.Status.IN_PROGRESS
+        event.save(update_fields=["status"])
+
+        return Response(
+            {
+                "message": "Event started successfully.",
+                "event": EventSerializer(event).data,
+            },
+            status=status.HTTP_200_OK,
+        )
+
+
+class EventCancelView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, event_id):
+        event = get_object_or_404(
+            Event.objects.select_related("ngo"),
+            pk=event_id,
+        )
+
+        if not user_can_manage_event(request.user, event):
+            return Response(
+                {
+                    "detail": (
+                        "You do not have permission to cancel this event."
+                    )
+                },
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        if event.status not in [
+            Event.Status.DRAFT,
+            Event.Status.OPEN,
+        ]:
+            return Response(
+                {
+                    "detail": (
+                        "Only draft or open events can be cancelled."
+                    )
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        event.status = Event.Status.CANCELLED
+        event.save(update_fields=["status"])
+
+        return Response(
+            {
+                "message": "Event cancelled successfully.",
+                "event": EventSerializer(event).data,
+            },
+            status=status.HTTP_200_OK,
+        )
