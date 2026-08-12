@@ -8,6 +8,10 @@ from .views import (
     EventRegistrationView,
     RegistrationApproveView,
     RegistrationRejectView,
+    AssignCoordinatorView,
+    EventTeamListCreateView,
+    AddTeamMemberView,
+    RegistrationAttendanceView,
 )
 
 
@@ -52,5 +56,29 @@ urlpatterns = [
         "<int:pk>/",
         EventDetailView.as_view(),
         name="event-detail",
+    ),
+
+    path(
+        "<int:event_id>/assign-coordinator/",
+        AssignCoordinatorView.as_view(),
+        name="assign-coordinator",
+    ),
+
+    path(
+        "<int:event_id>/teams/",
+        EventTeamListCreateView.as_view(),
+        name="event-teams",
+    ),
+
+    path(
+        "teams/<int:team_id>/members/",
+        AddTeamMemberView.as_view(),
+        name="add-team-member",
+    ),
+
+    path(
+        "registrations/<int:pk>/attendance/",
+        RegistrationAttendanceView.as_view(),
+        name="registration-attendance",
     ),
 ]

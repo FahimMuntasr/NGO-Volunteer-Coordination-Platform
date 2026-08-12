@@ -1,6 +1,6 @@
 from rest_framework import serializers
 
-from .models import Event, Registration
+from .models import Event, Registration, Team, TeamMembership
 from volunteering.models import Skill
 
 
@@ -122,3 +122,42 @@ class RegistrationSerializer(serializers.ModelSerializer):
         ]
 
         read_only_fields = fields
+
+class TeamMembershipSerializer(serializers.ModelSerializer):
+    volunteer_username = serializers.CharField(
+        source="volunteer.user.username",
+        read_only=True,
+    )
+
+    class Meta:
+        model = TeamMembership
+        fields = [
+            "id",
+            "volunteer",
+            "volunteer_username",
+            "assigned_task",
+        ]
+
+
+class TeamSerializer(serializers.ModelSerializer):
+    leader_username = serializers.CharField(
+        source="leader.user.username",
+        read_only=True,
+    )
+
+    memberships = TeamMembershipSerializer(
+        many=True,
+        read_only=True,
+    )
+
+    class Meta:
+        model = Team
+        fields = [
+            "id",
+            "event",
+            "name",
+            "leader",
+            "leader_username",
+            "memberships",
+        ]
+        read_only_fields = ["event"]
