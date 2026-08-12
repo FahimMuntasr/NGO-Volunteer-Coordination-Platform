@@ -1,42 +1,108 @@
-import { useState } from "react";
-import { useNavigate } from "react-router-dom";
-import { login } from "../api/auth";
+import {
+  useEffect,
+  useState,
+} from "react";
+
+import {
+  useNavigate,
+  Navigate,
+} from "react-router-dom";
+
+import { useAuth } from "../context/AuthContext";
 
 export default function Login() {
   const navigate = useNavigate();
+
+  const {
+    login,
+    isAuthenticated,
+    loading,
+  } = useAuth();
 
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
 
   const [error, setError] = useState("");
-  const [loading, setLoading] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
 
-  async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
-    e.preventDefault();
+  useEffect(() => {
+    if (isAuthenticated) {
+      navigate("/dashboard", {
+        replace: true,
+      });
+    }
+  }, [isAuthenticated, navigate]);
+
+  if (loading) {
+    return (
+      <div className="flex min-h-screen items-center justify-center">
+        <p className="text-gray-600">
+          Loading...
+        </p>
+      </div>
+    );
+  }
+
+  if (isAuthenticated) {
+    return (
+      <Navigate
+        to="/dashboard"
+        replace
+      />
+    );
+  }
+
+  async function handleSubmit(
+    event: React.FormEvent<HTMLFormElement>,
+  ) {
+    event.preventDefault();
 
     setError("");
-    setLoading(true);
+    setSubmitting(true);
 
     try {
-      const data = await login(username, password);
+      await login(
+        username,
+        password,
+      );
 
-      localStorage.setItem("token", data.token);
+      navigate("/dashboard", {
+        replace: true,
+      });
+    } catch (error: unknown) {
+      if (
+        typeof error === "object" &&
+        error !== null &&
+        "response" in error
+      ) {
+        const response = (
+          error as {
+            response?: {
+              data?: {
+                detail?: string;
+              };
+            };
+          }
+        ).response;
 
-      navigate("/dashboard");
-    } catch (error: any) {
-      const message =
-        error.response?.data?.detail ||
-        "Something went wrong. Please try again.";
-
-      setError(message);
+        setError(
+          response?.data?.detail ??
+            "Login failed. Please try again.",
+        );
+      } else {
+        setError(
+          "Unable to connect to the server.",
+        );
+      }
     } finally {
-      setLoading(false);
+      setSubmitting(false);
     }
   }
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-gray-100 px-4">
       <div className="w-full max-w-md rounded-xl bg-white p-8 shadow-lg">
+
         <div className="mb-8 text-center">
           <h1 className="text-3xl font-bold text-gray-800">
             NGO Volunteer Platform
@@ -51,6 +117,7 @@ export default function Login() {
           onSubmit={handleSubmit}
           className="space-y-5"
         >
+
           <div>
             <label
               htmlFor="username"
@@ -63,8 +130,11 @@ export default function Login() {
               id="username"
               type="text"
               value={username}
-              onChange={(e) => setUsername(e.target.value)}
+              onChange={(event) =>
+                setUsername(event.target.value)
+              }
               placeholder="Enter your username"
+              autoComplete="username"
               required
               className="w-full rounded-lg border border-gray-300 px-4 py-3 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
             />
@@ -82,8 +152,11 @@ export default function Login() {
               id="password"
               type="password"
               value={password}
-              onChange={(e) => setPassword(e.target.value)}
+              onChange={(event) =>
+                setPassword(event.target.value)
+              }
               placeholder="Enter your password"
+              autoComplete="current-password"
               required
               className="w-full rounded-lg border border-gray-300 px-4 py-3 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
             />
@@ -97,16 +170,16 @@ export default function Login() {
 
           <button
             type="submit"
-            disabled={loading}
+            disabled={submitting}
             className="w-full rounded-lg bg-blue-600 py-3 font-semibold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
           >
-            {loading ? "Logging in..." : "Login"}
+            {submitting
+              ? "Logging in..."
+              : "Login"}
           </button>
+
         </form>
 
-        <p className="mt-6 text-center text-sm text-gray-500">
-          NGO Volunteer Coordination Platform
-        </p>
       </div>
     </div>
   );

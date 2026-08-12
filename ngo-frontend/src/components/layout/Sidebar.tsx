@@ -1,67 +1,77 @@
-import { NavLink } from "react-router-dom";
+import {
+  NavLink,
+  useNavigate,
+} from "react-router-dom";
+
+import { useAuth } from "../../context/AuthContext";
 
 export default function Sidebar() {
+  const { logout } = useAuth();
+  const navigate = useNavigate();
+
+  function handleLogout() {
+    logout();
+
+    navigate("/login", {
+      replace: true,
+    });
+  }
+
+  const navLinkClass = ({
+    isActive,
+  }: {
+    isActive: boolean;
+  }) =>
+    `block rounded-lg px-4 py-3 transition ${
+      isActive
+        ? "bg-blue-100 font-semibold text-blue-700"
+        : "text-gray-700 hover:bg-gray-100"
+    }`;
+
   return (
-    <aside className="w-64 border-r border-gray-200 bg-gray-50 p-6">
-      <nav className="flex flex-col gap-4">
+    <aside className="w-64 shrink-0 border-r bg-white p-4">
+
+      <nav className="space-y-2">
+
         <NavLink
           to="/dashboard"
-          className={({ isActive }) =>
-            `rounded-md px-3 py-2 transition ${
-              isActive
-                ? "bg-blue-600 text-white"
-                : "text-gray-700 hover:bg-gray-200"
-            }`
-          }
+          className={navLinkClass}
+          end
         >
           Dashboard
         </NavLink>
 
         <NavLink
           to="/dashboard/events"
-          className={({ isActive }) =>
-            `rounded-md px-3 py-2 transition ${
-              isActive
-                ? "bg-blue-600 text-white"
-                : "text-gray-700 hover:bg-gray-200"
-            }`
-          }
+          className={navLinkClass}
         >
           Events
         </NavLink>
 
         <NavLink
+          to="/dashboard/my-events"
+          className={navLinkClass}
+        >
+          My Events
+        </NavLink>
+
+        <NavLink
           to="/dashboard/profile"
-          className={({ isActive }) =>
-            `rounded-md px-3 py-2 transition ${
-              isActive
-                ? "bg-blue-600 text-white"
-                : "text-gray-700 hover:bg-gray-200"
-            }`
-          }
+          className={navLinkClass}
         >
           Profile
         </NavLink>
 
-        <NavLink
-          to="/login"
-          className="mt-6 rounded-md px-3 py-2 text-red-600 transition hover:bg-red-100"
+        <button
+          type="button"
+          onClick={handleLogout}
+          className="w-full rounded-lg px-4 py-3 text-left text-red-600 transition hover:bg-red-50"
         >
           Logout
-        </NavLink>
-        <NavLink
-          to="/dashboard/my-events"
-          className={({ isActive }) =>
-            `rounded-md px-3 py-2 transition ${
-              isActive
-                ? "bg-blue-600 text-white"
-                : "text-gray-700 hover:bg-gray-200"
-            }`
-          }
-        >
-          My Events
-        </NavLink>
+        </button>
+
       </nav>
+
     </aside>
   );
 }
