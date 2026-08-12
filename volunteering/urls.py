@@ -4,7 +4,6 @@ from .views import (
     MyVolunteerProfileView,
     SkillListView,
     VolunteerHistoryView,
-    VolunteerLeaderboardView,
 )
 
 urlpatterns = [
@@ -24,11 +23,5 @@ urlpatterns = [
         "me/history/",
         VolunteerHistoryView.as_view(),
         name="volunteer-history",
-    ),
-
-    path(
-        "leaderboard/",
-        VolunteerLeaderboardView.as_view(),
-        name="volunteer-leaderboard",
     ),
 ]

@@ -172,7 +172,7 @@ class VolunteerProfileAPITests(APITestCase):
             2,
         )
         
-class VolunteerHistoryAndLeaderboardTests(APITestCase):
+class VolunteerHistoryTests(APITestCase):
 
     def setUp(self):
         self.admin = User.objects.create_user(
@@ -315,33 +315,4 @@ class VolunteerHistoryAndLeaderboardTests(APITestCase):
         self.assertEqual(
             response.status_code,
             status.HTTP_403_FORBIDDEN,
-        )
-
-    def test_leaderboard_orders_by_total_hours(self):
-        self.client.force_authenticate(
-            user=self.user1
-        )
-
-        response = self.client.get(
-            reverse("volunteer-leaderboard")
-        )
-
-        self.assertEqual(
-            response.status_code,
-            status.HTTP_200_OK,
-        )
-
-        self.assertEqual(
-            response.data[0]["name"],
-            "Alice Volunteer",
-        )
-
-        self.assertEqual(
-            response.data[0]["rank"],
-            1,
-        )
-
-        self.assertEqual(
-            response.data[1]["name"],
-            "Bob Volunteer",
         )
