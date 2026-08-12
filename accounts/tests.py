@@ -90,3 +90,72 @@ class AuthenticationAPITests(APITestCase):
             response.status_code,
             status.HTTP_401_UNAUTHORIZED,
         )
+        
+    def test_volunteer_can_register(self):
+        response = self.client.post(
+            reverse("register"),
+            {
+                "username": "newvolunteer",
+                "email": "new@example.com",
+                "password": "testpass123",
+                "first_name": "New",
+                "last_name": "Volunteer",
+                "role": User.Role.VOLUNTEER,
+            },
+            format="json",
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_201_CREATED,
+        )
+
+        self.assertIn("token", response.data)
+
+        self.assertTrue(
+            User.objects.filter(
+                username="newvolunteer"
+            ).exists()
+        )
+
+
+    def test_donor_can_register(self):
+        response = self.client.post(
+            reverse("register"),
+            {
+                "username": "newdonor",
+                "email": "donor@example.com",
+                "password": "testpass123",
+                "role": User.Role.DONOR,
+            },
+            format="json",
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_201_CREATED,
+        )
+
+
+    def test_user_cannot_self_register_as_ngo_admin(self):
+        response = self.client.post(
+            reverse("register"),
+            {
+                "username": "fakeadmin",
+                "email": "fake@example.com",
+                "password": "testpass123",
+                "role": User.Role.NGO_ADMIN,
+            },
+            format="json",
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_400_BAD_REQUEST,
+        )
+
+        self.assertFalse(
+            User.objects.filter(
+                username="fakeadmin"
+            ).exists()
+        )
