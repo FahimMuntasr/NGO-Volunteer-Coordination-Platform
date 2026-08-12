@@ -2,6 +2,9 @@ from rest_framework import serializers
 
 from .models import User
 
+from django.contrib.auth import password_validation
+from django.core.exceptions import ValidationError as DjangoValidationError
+
 
 class UserSerializer(serializers.ModelSerializer):
     class Meta:
@@ -62,3 +65,29 @@ class RegisterSerializer(serializers.ModelSerializer):
             )
 
         return user
+    
+class PasswordResetRequestSerializer(serializers.Serializer):
+    email = serializers.EmailField()
+
+
+class PasswordResetConfirmSerializer(serializers.Serializer):
+    new_password = serializers.CharField(
+        write_only=True,
+        min_length=8,
+    )
+
+    def validate_new_password(self, value):
+        user = self.context.get("user")
+
+        try:
+            password_validation.validate_password(
+                value,
+                user=user,
+            )
+
+        except DjangoValidationError as exc:
+            raise serializers.ValidationError(
+                exc.messages
+            )
+
+        return value
