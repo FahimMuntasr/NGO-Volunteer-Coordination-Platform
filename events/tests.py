@@ -132,6 +132,32 @@ class EventCreationTests(APITestCase):
 
         self.assertEqual(Event.objects.count(), 0)
         
+    def test_event_status_cannot_be_set_during_creation(self):
+        self.client.force_authenticate(
+            user=self.admin
+        )
+
+        data = self.valid_data.copy()
+        data["status"] = Event.Status.COMPLETED
+
+        response = self.client.post(
+            reverse("event-create"),
+            data,
+            format="json",
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_201_CREATED,
+        )
+
+        event = Event.objects.first()
+
+        self.assertEqual(
+            event.status,
+            Event.Status.DRAFT,
+        )
+        
 class EventRegistrationTests(APITestCase):
 
     def setUp(self):
@@ -845,6 +871,45 @@ class CoordinatorAssignmentTests(APITestCase):
 
         self.assertIsNone(
             self.event.coordinator
+        )
+        
+    def test_assigned_coordinator_can_view_registrations(self):
+        self.event.coordinator = self.coordinator
+        self.event.save(
+            update_fields=["coordinator"]
+        )
+
+        volunteer_profile, _ = (
+            VolunteerProfile.objects.get_or_create(
+                user=self.volunteer_user,
+            )
+        )
+
+        Registration.objects.create(
+            event=self.event,
+            volunteer=volunteer_profile,
+            status=Registration.Status.APPROVED,
+        )
+
+        self.client.force_authenticate(
+            user=self.coordinator
+        )
+
+        response = self.client.get(
+            reverse(
+                "event-registration-list",
+                args=[self.event.id],
+            )
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_200_OK,
+        )
+
+        self.assertEqual(
+            len(response.data),
+            1,
         )
 
 class TeamTests(APITestCase):
