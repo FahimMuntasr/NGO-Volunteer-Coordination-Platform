@@ -4,6 +4,7 @@ from rest_framework import status
 from rest_framework.test import APITestCase
 
 from accounts.models import User
+from volunteering.models import VolunteerProfile
 
 
 class AuthenticationAPITests(APITestCase):
@@ -113,8 +114,8 @@ class AuthenticationAPITests(APITestCase):
         self.assertIn("token", response.data)
 
         self.assertTrue(
-            User.objects.filter(
-                username="newvolunteer"
+            VolunteerProfile.objects.filter(
+                user__username="newvolunteer"
             ).exists()
         )
 

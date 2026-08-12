@@ -50,6 +50,15 @@ class RegisterSerializer(serializers.ModelSerializer):
         return value
 
     def create(self, validated_data):
-        return User.objects.create_user(
+        user = User.objects.create_user(
             **validated_data
         )
+
+        if user.role == User.Role.VOLUNTEER:
+            from volunteering.models import VolunteerProfile
+
+            VolunteerProfile.objects.get_or_create(
+                user=user
+            )
+
+        return user
