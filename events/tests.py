@@ -2,6 +2,8 @@ from datetime import timedelta
 
 from django.urls import reverse
 from django.utils import timezone
+from django.core.exceptions import ValidationError
+from django.db import IntegrityError, transaction
 
 from rest_framework import status
 from rest_framework.test import APITestCase
@@ -1546,3 +1548,106 @@ class EventStatusTests(APITestCase):
             self.event.status,
             Event.Status.IN_PROGRESS,
         )
+        
+class EventModelConstraintTests(APITestCase):
+
+    def setUp(self):
+        self.admin = User.objects.create_user(
+            username="admin1",
+            password="test123",
+            role=User.Role.NGO_ADMIN,
+        )
+
+        self.volunteer_user = User.objects.create_user(
+            username="volunteer1",
+            password="test123",
+            role=User.Role.VOLUNTEER,
+        )
+
+        self.volunteer, _ = VolunteerProfile.objects.get_or_create(
+            user=self.volunteer_user,
+        )
+
+        self.ngo = NGO.objects.create(
+            name="Helping Hands",
+            email="helpinghands@example.com",
+            administrator=self.admin,
+        )
+
+        self.start = timezone.now() + timedelta(days=10)
+        self.end = self.start + timedelta(hours=3)
+        self.deadline = self.start - timedelta(days=1)
+
+        self.event = Event.objects.create(
+            ngo=self.ngo,
+            created_by=self.admin,
+            title="Community Cleanup",
+            description="Clean up the local area.",
+            location="Dhaka",
+            start_date=self.start,
+            end_date=self.end,
+            registration_deadline=self.deadline,
+            volunteer_capacity=20,
+            status=Event.Status.OPEN,
+        )
+
+    def test_duplicate_registration_is_blocked_by_database(self):
+        Registration.objects.create(
+            event=self.event,
+            volunteer=self.volunteer,
+        )
+
+        with self.assertRaises(IntegrityError):
+            with transaction.atomic():
+                Registration.objects.create(
+                    event=self.event,
+                    volunteer=self.volunteer,
+                )
+
+    def test_event_model_rejects_end_before_start(self):
+        event = Event(
+            ngo=self.ngo,
+            created_by=self.admin,
+            title="Invalid Event",
+            description="Invalid dates.",
+            location="Dhaka",
+            start_date=self.start,
+            end_date=self.start - timedelta(hours=1),
+            registration_deadline=self.deadline,
+            volunteer_capacity=10,
+        )
+
+        with self.assertRaises(ValidationError):
+            event.full_clean()
+
+    def test_event_model_rejects_deadline_after_start(self):
+        event = Event(
+            ngo=self.ngo,
+            created_by=self.admin,
+            title="Invalid Event",
+            description="Invalid deadline.",
+            location="Dhaka",
+            start_date=self.start,
+            end_date=self.end,
+            registration_deadline=self.start + timedelta(hours=1),
+            volunteer_capacity=10,
+        )
+
+        with self.assertRaises(ValidationError):
+            event.full_clean()
+
+    def test_event_capacity_must_be_positive(self):
+        event = Event(
+            ngo=self.ngo,
+            created_by=self.admin,
+            title="Invalid Capacity",
+            description="Capacity cannot be zero.",
+            location="Dhaka",
+            start_date=self.start,
+            end_date=self.end,
+            registration_deadline=self.deadline,
+            volunteer_capacity=0,
+        )
+
+        with self.assertRaises(ValidationError):
+            event.full_clean()
