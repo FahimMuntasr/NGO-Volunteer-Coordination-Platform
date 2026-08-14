@@ -1,5 +1,6 @@
 from datetime import timedelta
 
+from django.test import TestCase
 from django.urls import reverse
 from django.utils import timezone
 from django.core.exceptions import ValidationError
@@ -17,6 +18,10 @@ from .models import (
     Team,
     TeamMembership,
 )
+
+from accounts.models import User
+from events.models import Event, Registration
+from events.services import ProxyEventService
 from volunteering.models import VolunteerProfile
 
 
@@ -1716,3 +1721,35 @@ class EventModelConstraintTests(APITestCase):
 
         with self.assertRaises(ValidationError):
             event.full_clean()
+class ProxyEventServiceTestCase(TestCase):
+    def setUp(self):
+        # Users...
+        self.admin_user = User.objects.create_user(
+            username="admin_user", password="password123", role=User.Role.NGO_ADMIN
+        )
+        self.volunteer = User.objects.create_user(
+            username="volunteer_sian", password="password123", role=User.Role.VOLUNTEER
+        )
+        self.donor = User.objects.create_user(
+            username="donor_john", password="password123", role=User.Role.DONOR
+        )
+
+        now = timezone.now()
+
+        # Provide start_date and end_date!
+        self.active_event = Event.objects.create(
+            title="Beach Clean",
+            status="ACTIVE",
+            start_date=now,
+            end_date=now + timedelta(days=1)
+        )
+        
+        self.draft_event = Event.objects.create(
+            title="Secret Plan",
+            status="DRAFT",
+            start_date=now,
+            end_date=now + timedelta(days=1)
+        )
+
+        Registration.objects.create(event=self.active_event, user=self.volunteer)
+        self.proxy = ProxyEventService()
