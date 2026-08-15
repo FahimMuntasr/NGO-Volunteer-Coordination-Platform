@@ -6,7 +6,7 @@ from .creators import (
     AttendanceReportCreator,
     ParticipationCertificateCreator,
 )
-from .generators import (
+from .products import (
     AttendanceReportGenerator,
     DocumentGenerator,
     ParticipationCertificateGenerator,
