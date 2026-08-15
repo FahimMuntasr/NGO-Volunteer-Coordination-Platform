@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 
-from .generators import (
+from .products import (
     AttendanceReportGenerator,
     DocumentGenerator,
     ParticipationCertificateGenerator,
