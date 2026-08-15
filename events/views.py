@@ -238,7 +238,7 @@ class EventRegistrationListView(APIView):
             pk=event_id,
         )
 
-        if not user_can_manage_event(request.user, event):
+        if not user_can_coordinate_event(request.user, event):
             return Response(
                 {
                     "detail": (

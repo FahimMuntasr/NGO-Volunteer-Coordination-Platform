@@ -1,3 +1,324 @@
-from django.test import TestCase
+from django.urls import reverse
 
-# Create your tests here.
+from rest_framework import status
+from rest_framework.test import APITestCase
+
+from accounts.models import User
+from volunteering.models import VolunteerProfile
+
+from django.contrib.auth.tokens import default_token_generator
+from django.core import mail
+from django.test import override_settings
+from django.utils.encoding import force_bytes
+from django.utils.http import urlsafe_base64_encode
+
+from rest_framework.authtoken.models import Token
+
+
+class AuthenticationAPITests(APITestCase):
+
+    def setUp(self):
+        self.user = User.objects.create_user(
+            username="testuser",
+            password="test123",
+            first_name="Test",
+            last_name="User",
+            role=User.Role.VOLUNTEER,
+        )
+
+    def test_user_can_login_with_correct_credentials(self):
+        response = self.client.post(
+            reverse("login"),
+            {
+                "username": "testuser",
+                "password": "test123",
+            },
+            format="json",
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_200_OK,
+        )
+
+        self.assertIn("token", response.data)
+        self.assertIn("user", response.data)
+
+    def test_login_fails_with_wrong_password(self):
+        response = self.client.post(
+            reverse("login"),
+            {
+                "username": "testuser",
+                "password": "wrongpassword",
+            },
+            format="json",
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_401_UNAUTHORIZED,
+        )
+
+    def test_login_requires_username_and_password(self):
+        response = self.client.post(
+            reverse("login"),
+            {},
+            format="json",
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_400_BAD_REQUEST,
+        )
+
+    def test_authenticated_user_can_view_me(self):
+        self.client.force_authenticate(
+            user=self.user
+        )
+
+        response = self.client.get(
+            reverse("current-user")
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_200_OK,
+        )
+
+        self.assertEqual(
+            response.data["username"],
+            "testuser",
+        )
+
+    def test_unauthenticated_user_cannot_view_me(self):
+        response = self.client.get(
+            reverse("current-user")
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_401_UNAUTHORIZED,
+        )
+        
+    def test_volunteer_can_register(self):
+        response = self.client.post(
+            reverse("register"),
+            {
+                "username": "newvolunteer",
+                "email": "new@example.com",
+                "password": "testpass123",
+                "first_name": "New",
+                "last_name": "Volunteer",
+                "role": User.Role.VOLUNTEER,
+            },
+            format="json",
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_201_CREATED,
+        )
+
+        self.assertIn("token", response.data)
+
+        self.assertTrue(
+            VolunteerProfile.objects.filter(
+                user__username="newvolunteer"
+            ).exists()
+        )
+
+
+    def test_donor_can_register(self):
+        response = self.client.post(
+            reverse("register"),
+            {
+                "username": "newdonor",
+                "email": "donor@example.com",
+                "password": "testpass123",
+                "role": User.Role.DONOR,
+            },
+            format="json",
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_201_CREATED,
+        )
+
+
+    def test_user_cannot_self_register_as_ngo_admin(self):
+        response = self.client.post(
+            reverse("register"),
+            {
+                "username": "fakeadmin",
+                "email": "fake@example.com",
+                "password": "testpass123",
+                "role": User.Role.NGO_ADMIN,
+            },
+            format="json",
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_400_BAD_REQUEST,
+        )
+
+        self.assertFalse(
+            User.objects.filter(
+                username="fakeadmin"
+            ).exists()
+        )
+        
+@override_settings(
+    EMAIL_BACKEND=(
+        "django.core.mail.backends.locmem.EmailBackend"
+    ),
+    FRONTEND_URL="http://localhost:5173",
+)
+class PasswordResetTests(APITestCase):
+
+    def setUp(self):
+        self.user = User.objects.create_user(
+            username="resetuser",
+            email="reset@example.com",
+            password="oldpassword123",
+            role=User.Role.VOLUNTEER,
+        )
+
+    def test_password_reset_request_sends_email(self):
+        response = self.client.post(
+            reverse("password-reset"),
+            {
+                "email": "reset@example.com",
+            },
+            format="json",
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_200_OK,
+        )
+
+        self.assertEqual(
+            len(mail.outbox),
+            1,
+        )
+
+        self.assertIn(
+            "reset-password",
+            mail.outbox[0].body,
+        )
+
+    def test_unknown_email_returns_generic_success(self):
+        response = self.client.post(
+            reverse("password-reset"),
+            {
+                "email": "unknown@example.com",
+            },
+            format="json",
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_200_OK,
+        )
+
+        self.assertEqual(
+            len(mail.outbox),
+            0,
+        )
+
+    def test_valid_token_can_reset_password(self):
+        uid = urlsafe_base64_encode(
+            force_bytes(self.user.pk)
+        )
+
+        token = default_token_generator.make_token(
+            self.user
+        )
+
+        response = self.client.post(
+            reverse(
+                "password-reset-confirm",
+                args=[uid, token],
+            ),
+            {
+                "new_password": (
+                    "NewSecurePassword123!"
+                ),
+            },
+            format="json",
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_200_OK,
+        )
+
+        self.user.refresh_from_db()
+
+        self.assertTrue(
+            self.user.check_password(
+                "NewSecurePassword123!"
+            )
+        )
+
+    def test_invalid_token_is_rejected(self):
+        uid = urlsafe_base64_encode(
+            force_bytes(self.user.pk)
+        )
+
+        response = self.client.post(
+            reverse(
+                "password-reset-confirm",
+                args=[uid, "fake-token"],
+            ),
+            {
+                "new_password": (
+                    "NewSecurePassword123!"
+                ),
+            },
+            format="json",
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_400_BAD_REQUEST,
+        )
+
+    def test_old_auth_token_is_removed_after_reset(self):
+        old_token = Token.objects.create(
+            user=self.user
+        )
+
+        uid = urlsafe_base64_encode(
+            force_bytes(self.user.pk)
+        )
+
+        token = default_token_generator.make_token(
+            self.user
+        )
+
+        response = self.client.post(
+            reverse(
+                "password-reset-confirm",
+                args=[uid, token],
+            ),
+            {
+                "new_password": (
+                    "NewSecurePassword123!"
+                ),
+            },
+            format="json",
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_200_OK,
+        )
+
+        self.assertFalse(
+            Token.objects.filter(
+                key=old_token.key
+            ).exists()
+        )

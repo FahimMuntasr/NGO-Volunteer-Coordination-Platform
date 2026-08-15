@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 
-from .generators import (
+from .products import (
     AttendanceReportGenerator,
     DocumentGenerator,
     ParticipationCertificateGenerator,
@@ -15,11 +15,6 @@ class DocumentCreator(ABC):
         pass
 
     def create_document(self, context):
-        """
-        Common operation that uses the object returned
-        by the factory method.
-        """
-
         generator = self.factory_method()
 
         return generator.generate(context)

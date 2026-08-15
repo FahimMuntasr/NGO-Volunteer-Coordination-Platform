@@ -56,7 +56,7 @@ class EventCreateSerializer(serializers.ModelSerializer):
             "status",
         ]
 
-        read_only_fields = ["id"]
+        read_only_fields = ["id","status"]
 
     def validate(self, attrs):
         start_date = attrs.get("start_date")
