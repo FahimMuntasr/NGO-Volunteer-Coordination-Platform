@@ -1,77 +1,89 @@
 from abc import ABC, abstractmethod
+
 from django.core.exceptions import PermissionDenied
 from django.db.models import Q
+
 from accounts.models import User
+
 from .models import Event
 
-# =======================================================
-# 1. SUBJECT INTERFACE
-# =======================================================
+
+# Subject Interface
 class AbstractEventService(ABC):
-    """
-    Defines the exact interface that both Real Subject and Proxy Subject implement.
-    """
+    """Common interface implemented by the Real Subject and Proxy."""
+
     @abstractmethod
     def get_events(self, user):
-        pass
+        """Return the events visible to the caller."""
+        raise NotImplementedError
 
     @abstractmethod
     def create_event(self, user, event_data):
-        pass
+        """Create an event after access control has been applied."""
+        raise NotImplementedError
 
 
-# =======================================================
-# 2. REAL SUBJECT
-# =======================================================
+# Real Subject
 class RealEventService(AbstractEventService):
-    """
-    Handles the actual ORM queries and database execution.
-    """
+    """Handles the event data operations."""
+
     def get_events(self, user):
         return Event.objects.all()
 
     def create_event(self, user, event_data):
-        return Event.objects.create(**event_data)
+        # Assign many-to-many skills after creating the event.
+        required_skills = event_data.pop("required_skills", None)
+
+        event = Event.objects.create(**event_data)
+
+        if required_skills is not None:
+            event.required_skills.set(required_skills)
+
+        return event
 
 
-# =======================================================
-# 3. PROXY SUBJECT
-# =======================================================
+# Proxy Subject
 class ProxyEventService(AbstractEventService):
-    """
-    Controls access to RealEventService based on User Role.
-    Strips unauthorized events dynamically before returning response.
-    """
-    def __init__(self):
-        # Keeps internal reference to the Real Subject
-        self._real_service = RealEventService()
+    """Controls event visibility according to the user's role."""
+
+    def __init__(self, real_service=None):
+        self._real_service = real_service or RealEventService()
 
     def get_events(self, user):
-        # Fetch base queryset through Real Subject
+        if not getattr(user, "is_authenticated", False):
+            raise PermissionDenied("Authentication is required.")
+
+        # Retrieve the available events from the real service.
         base_queryset = self._real_service.get_events(user)
 
-        # NGO_ADMIN & COORDINATOR: Full visibility of all events
-        if user.role in [User.Role.NGO_ADMIN, User.Role.COORDINATOR]:
-            return base_queryset.all()
+        # Apply role-based visibility before returning the events.
+        if user.role in (
+            User.Role.NGO_ADMIN,
+            User.Role.COORDINATOR,
+        ):
+            # Administrators and coordinators can view all event statuses.
+            return base_queryset
 
-        # VOLUNTEER: Can see Active/Open events OR events they registered for
-        elif user.role == User.Role.VOLUNTEER:
+        if user.role == User.Role.DONOR:
+            # OPEN events are available for donor viewing.
             return base_queryset.filter(
-                Q(status__in=["ACTIVE", "OPEN"]) | 
-                Q(registrations__volunteer__user=user)
+                status=Event.Status.OPEN,
+            )
+
+        if user.role == User.Role.VOLUNTEER:
+            # Include open events and events registered by the volunteer.
+            return base_queryset.filter(
+                Q(status=Event.Status.OPEN)
+                | Q(registrations__volunteer__user=user)
             ).distinct()
 
-        # DONOR: Can only see active public events
-        elif user.role == User.Role.DONOR:
-            return base_queryset.filter(status="ACTIVE")
-
-        else:
-            raise PermissionDenied("Access Denied: Unrecognized user role.")
+        raise PermissionDenied("Access denied: unrecognized user role.")
 
     def create_event(self, user, event_data):
-        # Access control on action
-        if user.role not in [User.Role.NGO_ADMIN, User.Role.COORDINATOR]:
-            raise PermissionDenied("Access Denied: Only Admins and Coordinators can create events.")
+        # Event creation is restricted to NGO administrators.
+        if user.role != User.Role.NGO_ADMIN:
+            raise PermissionDenied(
+                "Only NGO administrators can create events."
+            )
 
-        # Delegate execution to Real Subject if access granted
         return self._real_service.create_event(user, event_data)

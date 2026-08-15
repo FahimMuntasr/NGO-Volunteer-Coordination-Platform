@@ -17,6 +17,7 @@ from accounts.models import User
 from volunteering.models import VolunteerProfile
 
 from .models import Event, Registration, Team, TeamMembership
+from .services import ProxyEventService
 from .serializers import (
     EventCreateSerializer,
     EventSerializer,
@@ -43,53 +44,76 @@ def user_can_coordinate_event(user, event):
     )
 
 class EventListView(ListAPIView):
+    """Return events available to the authenticated user."""
+
     serializer_class = EventSerializer
+    permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
+        proxy = ProxyEventService()
+
         return (
-            Event.objects
-            .select_related("ngo")
+            proxy
+            .get_events(self.request.user)
+            .select_related("ngo", "created_by", "coordinator")
             .prefetch_related("required_skills")
             .order_by("start_date")
         )
 
+
 class EventDetailView(RetrieveAPIView):
-    queryset = (
-        Event.objects
-        .select_related("ngo", "created_by")
-        .prefetch_related("required_skills")
-    )
+    """Return an event only when it is visible to the current user."""
 
     serializer_class = EventSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        proxy = ProxyEventService()
+
+        return (
+            proxy
+            .get_events(self.request.user)
+            .select_related("ngo", "created_by", "coordinator")
+            .prefetch_related("required_skills")
+        )
 
 
 class EventCreateView(CreateAPIView):
     serializer_class = EventCreateSerializer
     permission_classes = [IsAuthenticated]
 
-    def perform_create(self, serializer):
-        user = self.request.user
+    def create(self, request, *args, **kwargs):
+        user = request.user
+        proxy = ProxyEventService()
 
+        # 1. Let Proxy handles the permission check FIRST
         if user.role != User.Role.NGO_ADMIN:
-            raise PermissionDenied(
-                "Only NGO administrators can create events."
-            )
+            # Invoking the proxy with raw data triggers its role check and raises PermissionDenied
+            proxy.create_event(user, request.data)
 
+        # 2. NGO relationship check
         ngo = user.managed_ngos.first()
-
         if ngo is None:
             raise ValidationError(
-                {
-                    "ngo": (
-                        "This administrator is not connected "
-                        "to an NGO."
-                    )
-                }
+                {"ngo": "This administrator is not connected to an NGO."}
             )
 
-        serializer.save(
-            ngo=ngo,
-            created_by=user,
+        # 3. Serializer validation SECOND
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        # 4. Delegate actual creation to Proxy
+        event_data = dict(serializer.validated_data)
+        event_data["ngo"] = ngo
+        event_data["created_by"] = user
+
+        event = proxy.create_event(user, event_data)
+
+        headers = self.get_success_headers(serializer.data)
+        return Response(
+            EventSerializer(event).data,
+            status=status.HTTP_201_CREATED,
+            headers=headers,
         )
 
 class EventUpdateView(UpdateAPIView):
@@ -411,7 +435,12 @@ class EventTeamListCreateView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request, event_id):
-        event = get_object_or_404(Event, pk=event_id)
+        proxy = ProxyEventService()
+
+        event = get_object_or_404(
+            proxy.get_events(request.user),
+            pk=event_id,
+        )
 
         teams = (
             event.teams
