@@ -8,13 +8,10 @@ urlpatterns = [
     path("api/auth/", include("accounts.urls")),
     path("api/events/", include("events.urls")),
     path("api/donations/", include("donations.urls")),
-<<<<<<< HEAD
     path("api/notifications/", include("notifications.urls")),
-=======
     path("api/certificates/", include("certificates.urls")),
     path("api/volunteers/", include("volunteering.urls")),
     path("api/organizations/",include("organizations.urls")),
->>>>>>> origin/backend
 ]
 
 if settings.DEBUG:
