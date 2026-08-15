@@ -26,6 +26,14 @@ from .serializers import (
     TeamMembershipSerializer,
 )
 
+from notifications.domain_events import (
+    EventPublished,
+    RegistrationCreated,
+    RegistrationStatusChanged,
+    TeamMemberAssigned,
+)
+from notifications.observers import notification_subject
+
 def user_can_manage_event(user, event):
     """Return True when the user administers the event's NGO."""
     return (
@@ -87,10 +95,13 @@ class EventCreateView(CreateAPIView):
                 }
             )
 
-        serializer.save(
+        event = serializer.save(
             ngo=ngo,
             created_by=user,
         )
+
+        if event.status == Event.Status.OPEN:
+            notification_subject.notify(EventPublished(event))
 
 class EventUpdateView(UpdateAPIView):
     queryset = Event.objects.select_related("ngo")
@@ -109,6 +120,16 @@ class EventUpdateView(UpdateAPIView):
             )
 
         return event
+    
+    def perform_update(self, serializer):
+        previous_status = serializer.instance.status
+        event = serializer.save()
+
+        if (
+            previous_status != Event.Status.OPEN
+            and event.status == Event.Status.OPEN
+        ):
+            notification_subject.notify(EventPublished(event))
 
 class EventRegistrationView(APIView):
     permission_classes = [IsAuthenticated]
@@ -197,6 +218,10 @@ class EventRegistrationView(APIView):
         registration = Registration.objects.create(
             event=event,
             volunteer=volunteer_profile,
+        )
+
+        notification_subject.notify(
+            RegistrationCreated(registration)
         )
 
         return Response(
@@ -299,6 +324,10 @@ class RegistrationApproveView(APIView):
             ]
         )
 
+        notification_subject.notify(
+            RegistrationStatusChanged(registration)
+        )
+
         return Response(
             {
                 "message": "Registration approved successfully.",
@@ -352,6 +381,10 @@ class RegistrationRejectView(APIView):
                 "status",
                 "approved_at",
             ]
+        )
+
+        notification_subject.notify(
+            RegistrationStatusChanged(registration)
         )
 
         return Response(
@@ -501,6 +534,10 @@ class AddTeamMemberView(APIView):
             team=team,
             volunteer=registration.volunteer,
             assigned_task=assigned_task,
+        )
+
+        notification_subject.notify(
+            TeamMemberAssigned(membership)
         )
 
         return Response(
