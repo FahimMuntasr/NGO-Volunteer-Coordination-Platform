@@ -4,6 +4,7 @@ from django.urls import reverse
 from django.utils import timezone
 from django.core.exceptions import ValidationError
 from django.db import IntegrityError, transaction
+from decimal import Decimal
 
 from rest_framework import status
 from rest_framework.test import APITestCase
@@ -1716,3 +1717,137 @@ class EventModelConstraintTests(APITestCase):
 
         with self.assertRaises(ValidationError):
             event.full_clean()
+            
+class EventCompletionFacadeTests(APITestCase):
+
+    def setUp(self):
+        self.admin = User.objects.create_user(
+            username="facade_admin",
+            password="test123",
+            role=User.Role.NGO_ADMIN,
+        )
+
+        self.volunteer_user = User.objects.create_user(
+            username="facade_volunteer",
+            password="test123",
+            role=User.Role.VOLUNTEER,
+        )
+
+        self.volunteer, _ = (
+            VolunteerProfile.objects.get_or_create(
+                user=self.volunteer_user,
+            )
+        )
+
+        self.ngo = NGO.objects.create(
+            name="Facade Test NGO",
+            email="facade@example.com",
+            administrator=self.admin,
+        )
+
+        self.start = timezone.now() - timedelta(hours=3)
+        self.end = self.start + timedelta(hours=3)
+
+        self.event = Event.objects.create(
+            ngo=self.ngo,
+            created_by=self.admin,
+            title="Facade Test Event",
+            description="Testing the Facade pattern.",
+            location="Dhaka",
+            start_date=self.start,
+            end_date=self.end,
+            registration_deadline=(
+                self.start - timedelta(days=1)
+            ),
+            volunteer_capacity=10,
+            status=Event.Status.IN_PROGRESS,
+        )
+
+        self.registration = Registration.objects.create(
+            event=self.event,
+            volunteer=self.volunteer,
+            status=Registration.Status.APPROVED,
+            attendance_status=(
+                Registration.AttendanceStatus.PRESENT
+            ),
+        )
+
+    def test_admin_can_complete_event(self):
+
+        self.client.force_authenticate(
+            user=self.admin
+        )
+
+        response = self.client.post(
+            reverse(
+                "event-complete",
+                args=[self.event.id],
+            )
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_200_OK,
+        )
+
+        self.event.refresh_from_db()
+        self.registration.refresh_from_db()
+        self.volunteer.refresh_from_db()
+
+        self.assertEqual(
+            self.event.status,
+            Event.Status.COMPLETED,
+        )
+
+        self.assertEqual(
+            self.registration.status,
+            Registration.Status.COMPLETED,
+        )
+
+        self.assertEqual(
+            self.registration.hours_earned,
+            Decimal("3.00"),
+        )
+
+        self.assertEqual(
+            self.volunteer.total_hours,
+            Decimal("3.00"),
+        )
+
+        self.assertEqual(
+            self.volunteer.completed_events,
+            1,
+        )
+
+    def test_cannot_complete_without_attendance(self):
+
+        self.registration.attendance_status = (
+            Registration.AttendanceStatus.NOT_MARKED
+        )
+
+        self.registration.save(
+            update_fields=["attendance_status"]
+        )
+
+        self.client.force_authenticate(
+            user=self.admin
+        )
+
+        response = self.client.post(
+            reverse(
+                "event-complete",
+                args=[self.event.id],
+            )
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_400_BAD_REQUEST,
+        )
+
+        self.event.refresh_from_db()
+
+        self.assertEqual(
+            self.event.status,
+            Event.Status.IN_PROGRESS,
+        )

@@ -15,6 +15,7 @@ from rest_framework.views import APIView
 
 from accounts.models import User
 from volunteering.models import VolunteerProfile
+from .facades import EventCompletionFacade
 
 from .models import Event, Registration, Team, TeamMembership
 from .serializers import (
@@ -697,5 +698,25 @@ class EventCancelView(APIView):
                 "message": "Event cancelled successfully.",
                 "event": EventSerializer(event).data,
             },
+            status=status.HTTP_200_OK,
+        )
+        
+class EventCompleteView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, event_id):
+
+        event = get_object_or_404(
+            Event.objects.select_related("ngo"),
+            pk=event_id,
+        )
+
+        result = EventCompletionFacade.complete_event(
+            event=event,
+            user=request.user,
+        )
+
+        return Response(
+            result,
             status=status.HTTP_200_OK,
         )
