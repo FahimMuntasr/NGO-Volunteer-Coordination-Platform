@@ -1,8 +1,9 @@
 from datetime import timedelta
 
+from django.test import TestCase
 from django.urls import reverse
 from django.utils import timezone
-from django.core.exceptions import ValidationError
+from django.core.exceptions import PermissionDenied, ValidationError
 from django.db import IntegrityError, transaction
 from decimal import Decimal
 
@@ -18,6 +19,10 @@ from .models import (
     Team,
     TeamMembership,
 )
+
+from accounts.models import User
+from events.models import Event, Registration
+from events.services import ProxyEventService, RealEventService
 from volunteering.models import VolunteerProfile
 
 
@@ -41,7 +46,7 @@ class EventCreationTests(APITestCase):
             email="helpinghands@example.com",
             administrator=self.admin,
         )
-
+        self.now = timezone.now()
         self.start = timezone.now() + timedelta(days=10)
         self.end = self.start + timedelta(hours=3)
         self.deadline = self.start - timedelta(days=1)
@@ -1717,6 +1722,203 @@ class EventModelConstraintTests(APITestCase):
 
         with self.assertRaises(ValidationError):
             event.full_clean()
+class ProxyEventServiceTestCase(TestCase):
+    """Tests for the Proxy Design Pattern role-based event visibility."""
+
+    def setUp(self):
+        self.admin_user = User.objects.create_user(
+            username="admin_user",
+            password="password123",
+            role=User.Role.NGO_ADMIN,
+        )
+
+        self.coordinator_user = User.objects.create_user(
+            username="coordinator_user",
+            password="password123",
+            role=User.Role.COORDINATOR,
+        )
+
+        self.volunteer_user = User.objects.create_user(
+            username="volunteer_sian",
+            password="password123",
+            role=User.Role.VOLUNTEER,
+        )
+
+        self.donor_user = User.objects.create_user(
+            username="donor_john",
+            password="password123",
+            role=User.Role.DONOR,
+        )
+
+        self.volunteer_profile = VolunteerProfile.objects.create(
+            user=self.volunteer_user,
+        )
+
+        self.ngo = NGO.objects.create(
+            name="Helping Hands",
+            email="helpinghands@example.com",
+            administrator=self.admin_user,
+        )
+
+        now = timezone.now()
+        self.start = now + timedelta(days=10)
+        self.end = self.start + timedelta(hours=3)
+        self.deadline = self.start - timedelta(days=1)
+
+        self.draft_event = self._create_event(
+            "Secret Draft",
+            Event.Status.DRAFT,
+        )
+        self.open_event = self._create_event(
+            "Public Cleanup",
+            Event.Status.OPEN,
+        )
+        self.in_progress_event = self._create_event(
+            "Ongoing Project",
+            Event.Status.IN_PROGRESS,
+        )
+        self.completed_event = self._create_event(
+            "Completed Project",
+            Event.Status.COMPLETED,
+        )
+        self.cancelled_event = self._create_event(
+            "Cancelled Project",
+            Event.Status.CANCELLED,
+        )
+
+        # The volunteer is explicitly registered for the private draft event.
+        # This verifies that registration-based visibility works independently
+        # from the event's public OPEN status.
+        self.volunteer_registered_event = self._create_event(
+            "Volunteer Registered Event",
+            Event.Status.DRAFT,
+        )
+        Registration.objects.create(
+            event=self.volunteer_registered_event,
+            volunteer=self.volunteer_profile,
+        )
+
+        self.proxy = ProxyEventService()
+
+    def _create_event(self, title, event_status):
+        return Event.objects.create(
+            ngo=self.ngo,
+            created_by=self.admin_user,
+            coordinator=self.coordinator_user,
+            title=title,
+            description="Test event description.",
+            location="Dhaka",
+            start_date=self.start,
+            end_date=self.end,
+            registration_deadline=self.deadline,
+            volunteer_capacity=20,
+            status=event_status,
+        )
+
+    def _ids(self, queryset):
+        return set(queryset.values_list("id", flat=True))
+
+    def test_admin_can_see_all_events(self):
+        visible_ids = self._ids(
+            self.proxy.get_events(self.admin_user)
+        )
+
+        self.assertEqual(
+            visible_ids,
+            set(Event.objects.values_list("id", flat=True)),
+        )
+
+    def test_coordinator_can_see_all_events(self):
+        visible_ids = self._ids(
+            self.proxy.get_events(self.coordinator_user)
+        )
+
+        self.assertEqual(
+            visible_ids,
+            set(Event.objects.values_list("id", flat=True)),
+        )
+
+    def test_donor_can_see_only_open_events(self):
+        visible_ids = self._ids(
+            self.proxy.get_events(self.donor_user)
+        )
+
+        self.assertEqual(
+            visible_ids,
+            {self.open_event.id},
+        )
+
+    def test_volunteer_can_see_open_and_registered_events(self):
+        visible_ids = self._ids(
+            self.proxy.get_events(self.volunteer_user)
+        )
+
+        self.assertEqual(
+            visible_ids,
+            {
+                self.open_event.id,
+                self.volunteer_registered_event.id,
+            },
+        )
+
+    def test_volunteer_cannot_see_unregistered_private_events(self):
+        visible_ids = self._ids(
+            self.proxy.get_events(self.volunteer_user)
+        )
+
+        self.assertNotIn(self.draft_event.id, visible_ids)
+        self.assertNotIn(self.in_progress_event.id, visible_ids)
+        self.assertNotIn(self.completed_event.id, visible_ids)
+        self.assertNotIn(self.cancelled_event.id, visible_ids)
+
+    def test_donor_cannot_see_draft_event(self):
+        visible_ids = self._ids(
+            self.proxy.get_events(self.donor_user)
+        )
+
+        self.assertNotIn(self.draft_event.id, visible_ids)
+
+    def test_real_subject_is_wrapped_by_proxy(self):
+        real_service = RealEventService()
+        proxy = ProxyEventService(real_service=real_service)
+
+        self.assertIs(
+            proxy._real_service,
+            real_service,
+        )
+
+    def test_unknown_role_is_denied(self):
+        user = User.objects.create_user(
+            username="unknown_role",
+            password="password123",
+            role=User.Role.DONOR,
+        )
+
+        # Temporarily use an invalid role value to verify the Proxy's default
+        # deny branch.
+        user.role = "UNKNOWN_ROLE"
+
+        with self.assertRaises(PermissionDenied):
+            self.proxy.get_events(user)
+
+    def test_create_event_is_denied_for_non_admin(self):
+        with self.assertRaises(PermissionDenied):
+            self.proxy.create_event(
+                self.donor_user,
+                {
+                    "ngo": self.ngo,
+                    "created_by": self.donor_user,
+                    "title": "Not Allowed",
+                    "description": "Should not be created.",
+                    "location": "Dhaka",
+                    "start_date": self.start,
+                    "end_date": self.end,
+                    "registration_deadline": self.deadline,
+                    "volunteer_capacity": 10,
+                    "status": Event.Status.DRAFT,
+                },
+            )
+
             
 class EventCompletionFacadeTests(APITestCase):
 
