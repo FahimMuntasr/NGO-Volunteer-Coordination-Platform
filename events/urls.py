@@ -1,4 +1,5 @@
 from django.urls import path
+from volunteering.views import MyRegistrationsView
 
 from .views import (
     EventCreateView,
@@ -114,5 +115,11 @@ urlpatterns = [
         "<int:event_id>/complete/",
         EventCompleteView.as_view(),
         name="event-complete",
-    ),   
+    ),
+    
+    path(
+        "my-registrations/",
+        MyRegistrationsView.as_view(),
+        name="event-my-registrations",
+    ),
 ]

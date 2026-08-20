@@ -12,7 +12,7 @@ from donations.models import Donation
 from events.models import Event, Registration
 from volunteering.models import VolunteerProfile
 
-from .models import NGO
+from .models import NGO, VerifiedNGORegistry
 
 
 class NGODashboardTests(APITestCase):
@@ -208,4 +208,312 @@ class NGODashboardTests(APITestCase):
         self.assertEqual(
             response.status_code,
             status.HTTP_403_FORBIDDEN,
+        )
+        
+class NGOVerificationTests(APITestCase):
+
+    def setUp(self):
+        self.admin = User.objects.create_user(
+            username="verification_admin",
+            password="test123",
+            role=User.Role.NGO_ADMIN,
+        )
+
+        self.other_admin = User.objects.create_user(
+            username="other_verification_admin",
+            password="test123",
+            role=User.Role.NGO_ADMIN,
+        )
+
+        self.volunteer = User.objects.create_user(
+            username="verification_volunteer",
+            password="test123",
+            role=User.Role.VOLUNTEER,
+        )
+
+        self.ngo = NGO.objects.create(
+            name="Abdul Alim Foundation",
+            email="abdulalim@example.com",
+            administrator=self.admin,
+        )
+
+        self.registry_entry = (
+            VerifiedNGORegistry.objects.create(
+                name="Abdul Alim Foundation",
+                registration_number="3287",
+                address="Dhaka",
+            )
+        )
+
+    def test_matching_ngo_is_verified(self):
+        self.client.force_authenticate(
+            user=self.admin
+        )
+
+        response = self.client.post(
+            reverse(
+                "ngo-verify",
+                args=[self.ngo.id],
+            ),
+            {
+                "registration_number": "3287",
+            },
+            format="json",
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_200_OK,
+        )
+
+        self.ngo.refresh_from_db()
+
+        self.assertTrue(
+            self.ngo.is_verified
+        )
+
+        self.assertEqual(
+            self.ngo.verification_status,
+            NGO.VerificationStatus.VERIFIED,
+        )
+
+        self.assertEqual(
+            self.ngo.registry_entry,
+            self.registry_entry,
+        )
+
+        self.assertIsNotNone(
+            self.ngo.verified_at
+        )
+
+        self.assertTrue(
+            response.data["verified"]
+        )
+
+    def test_unknown_registration_number_is_rejected(self):
+        self.client.force_authenticate(
+            user=self.admin
+        )
+
+        response = self.client.post(
+            reverse(
+                "ngo-verify",
+                args=[self.ngo.id],
+            ),
+            {
+                "registration_number": "9999",
+            },
+            format="json",
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_200_OK,
+        )
+
+        self.ngo.refresh_from_db()
+
+        self.assertFalse(
+            self.ngo.is_verified
+        )
+
+        self.assertEqual(
+            self.ngo.verification_status,
+            NGO.VerificationStatus.REJECTED,
+        )
+
+        self.assertIsNone(
+            self.ngo.registry_entry
+        )
+
+        self.assertIsNone(
+            self.ngo.verified_at
+        )
+
+        self.assertFalse(
+            response.data["verified"]
+        )
+
+    def test_registration_number_with_wrong_name_is_rejected(self):
+        self.ngo.name = "Fake NGO"
+        self.ngo.save(
+            update_fields=["name"]
+        )
+
+        self.client.force_authenticate(
+            user=self.admin
+        )
+
+        response = self.client.post(
+            reverse(
+                "ngo-verify",
+                args=[self.ngo.id],
+            ),
+            {
+                "registration_number": "3287",
+            },
+            format="json",
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_200_OK,
+        )
+
+        self.ngo.refresh_from_db()
+
+        self.assertFalse(
+            self.ngo.is_verified
+        )
+
+        self.assertEqual(
+            self.ngo.verification_status,
+            NGO.VerificationStatus.REJECTED,
+        )
+
+        self.assertIsNone(
+            self.ngo.registry_entry
+        )
+
+    def test_wrong_admin_cannot_verify_ngo(self):
+        self.client.force_authenticate(
+            user=self.other_admin
+        )
+
+        response = self.client.post(
+            reverse(
+                "ngo-verify",
+                args=[self.ngo.id],
+            ),
+            {
+                "registration_number": "3287",
+            },
+            format="json",
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_403_FORBIDDEN,
+        )
+
+        self.ngo.refresh_from_db()
+
+        self.assertFalse(
+            self.ngo.is_verified
+        )
+
+        self.assertEqual(
+            self.ngo.verification_status,
+            NGO.VerificationStatus.PENDING,
+        )
+
+    def test_volunteer_cannot_verify_ngo(self):
+        self.client.force_authenticate(
+            user=self.volunteer
+        )
+
+        response = self.client.post(
+            reverse(
+                "ngo-verify",
+                args=[self.ngo.id],
+            ),
+            {
+                "registration_number": "3287",
+            },
+            format="json",
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_403_FORBIDDEN,
+        )
+
+        self.ngo.refresh_from_db()
+
+        self.assertFalse(
+            self.ngo.is_verified
+        )
+
+    def test_registration_number_is_required(self):
+        self.client.force_authenticate(
+            user=self.admin
+        )
+
+        response = self.client.post(
+            reverse(
+                "ngo-verify",
+                args=[self.ngo.id],
+            ),
+            {},
+            format="json",
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_400_BAD_REQUEST,
+        )
+
+        self.assertIn(
+            "registration_number",
+            response.data,
+        )
+        
+    def test_expired_ngo_registration_is_rejected(self):
+        from datetime import timedelta
+        from django.utils import timezone
+
+        self.registry_entry.valid_upto = (
+            timezone.localdate() - timedelta(days=1)
+        )
+        self.registry_entry.save(
+            update_fields=["valid_upto"]
+        )
+
+        self.client.force_authenticate(
+            user=self.admin
+        )
+
+        response = self.client.post(
+            reverse(
+                "ngo-verify",
+                args=[self.ngo.id],
+            ),
+            {
+                "registration_number": "3287",
+            },
+            format="json",
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_200_OK,
+        )
+
+        self.ngo.refresh_from_db()
+
+        self.assertFalse(
+            self.ngo.is_verified
+        )
+
+        self.assertEqual(
+            self.ngo.verification_status,
+            NGO.VerificationStatus.REJECTED,
+        )
+
+        self.assertEqual(
+            self.ngo.registry_entry,
+            self.registry_entry,
+        )
+
+        self.assertIsNone(
+            self.ngo.verified_at
+        )
+
+        self.assertFalse(
+            response.data["verified"]
+        )
+
+        self.assertEqual(
+            response.data["message"],
+            "NGO registration has expired.",
         )

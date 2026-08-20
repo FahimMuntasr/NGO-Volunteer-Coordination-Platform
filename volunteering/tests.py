@@ -316,3 +316,155 @@ class VolunteerHistoryTests(APITestCase):
             response.status_code,
             status.HTTP_403_FORBIDDEN,
         )
+        
+class MyRegistrationsTests(APITestCase):
+
+    def setUp(self):
+        self.admin = User.objects.create_user(
+            username="registration_admin",
+            password="test123",
+            role=User.Role.NGO_ADMIN,
+        )
+
+        self.volunteer_user = User.objects.create_user(
+            username="registration_volunteer",
+            password="test123",
+            role=User.Role.VOLUNTEER,
+        )
+
+        self.other_volunteer_user = User.objects.create_user(
+            username="other_registration_volunteer",
+            password="test123",
+            role=User.Role.VOLUNTEER,
+        )
+
+        self.volunteer, _ = (
+            VolunteerProfile.objects.get_or_create(
+                user=self.volunteer_user
+            )
+        )
+
+        self.other_volunteer, _ = (
+            VolunteerProfile.objects.get_or_create(
+                user=self.other_volunteer_user
+            )
+        )
+
+        self.ngo = NGO.objects.create(
+            name="Registration Test NGO",
+            email="registration@example.com",
+            administrator=self.admin,
+            is_verified=True,
+        )
+
+        start = timezone.now() + timedelta(days=10)
+        end = start + timedelta(hours=3)
+        deadline = start - timedelta(days=1)
+
+        self.event1 = Event.objects.create(
+            ngo=self.ngo,
+            created_by=self.admin,
+            title="Pending Event",
+            description="Test event.",
+            location="Dhaka",
+            start_date=start,
+            end_date=end,
+            registration_deadline=deadline,
+            volunteer_capacity=20,
+            status=Event.Status.OPEN,
+        )
+
+        self.event2 = Event.objects.create(
+            ngo=self.ngo,
+            created_by=self.admin,
+            title="Approved Event",
+            description="Test event.",
+            location="Dhaka",
+            start_date=start,
+            end_date=end,
+            registration_deadline=deadline,
+            volunteer_capacity=20,
+            status=Event.Status.OPEN,
+        )
+
+        self.pending_registration = (
+            Registration.objects.create(
+                event=self.event1,
+                volunteer=self.volunteer,
+                status=Registration.Status.PENDING,
+            )
+        )
+
+        self.approved_registration = (
+            Registration.objects.create(
+                event=self.event2,
+                volunteer=self.volunteer,
+                status=Registration.Status.APPROVED,
+            )
+        )
+        
+    def test_volunteer_can_view_all_registrations(self):
+        self.client.force_authenticate(
+            user=self.volunteer_user
+        )
+
+        response = self.client.get(
+            reverse("volunteer-registrations")
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_200_OK,
+        )
+
+        self.assertEqual(
+            len(response.data),
+            2,
+        )
+
+        returned_statuses = {
+            item["status"]
+            for item in response.data
+        }
+
+        self.assertEqual(
+            returned_statuses,
+            {
+                Registration.Status.PENDING,
+                Registration.Status.APPROVED,
+            },
+        )
+        
+    def test_volunteer_does_not_see_other_registrations(self):
+        Registration.objects.create(
+            event=self.event1,
+            volunteer=self.other_volunteer,
+            status=Registration.Status.PENDING,
+        )
+
+        self.client.force_authenticate(
+            user=self.volunteer_user
+        )
+
+        response = self.client.get(
+            reverse("volunteer-registrations")
+        )
+
+        self.assertEqual(
+            len(response.data),
+            2,
+        )
+    
+    def test_ngo_admin_cannot_view_volunteer_registrations(self):
+        self.client.force_authenticate(
+            user=self.admin
+        )
+
+        response = self.client.get(
+            reverse("volunteer-registrations")
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_403_FORBIDDEN,
+        )
