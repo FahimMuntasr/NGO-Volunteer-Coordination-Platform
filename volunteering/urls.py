@@ -1,6 +1,7 @@
 from django.urls import path
 
 from .views import (
+    MyRegistrationsView,
     MyVolunteerProfileView,
     SkillListView,
     VolunteerHistoryView,
@@ -23,5 +24,11 @@ urlpatterns = [
         "me/history/",
         VolunteerHistoryView.as_view(),
         name="volunteer-history",
+    ),
+    
+    path(
+        "me/registrations/",
+        MyRegistrationsView.as_view(),
+        name="volunteer-registrations",
     ),
 ]

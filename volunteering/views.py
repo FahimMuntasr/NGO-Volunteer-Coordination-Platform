@@ -141,3 +141,44 @@ class VolunteerHistoryView(APIView):
             serializer.data,
             status=status.HTTP_200_OK,
         )
+        
+class MyRegistrationsView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        if request.user.role != User.Role.VOLUNTEER:
+            return Response(
+                {
+                    "detail": (
+                        "Only volunteers can view "
+                        "their registrations."
+                    )
+                },
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        profile, _ = VolunteerProfile.objects.get_or_create(
+            user=request.user
+        )
+
+        registrations = (
+            Registration.objects
+            .filter(
+                volunteer=profile
+            )
+            .select_related(
+                "event",
+                "event__ngo",
+            )
+            .order_by("-registered_at")
+        )
+
+        serializer = VolunteerHistorySerializer(
+            registrations,
+            many=True,
+        )
+
+        return Response(
+            serializer.data,
+            status=status.HTTP_200_OK,
+        )
