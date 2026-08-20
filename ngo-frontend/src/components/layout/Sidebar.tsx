@@ -62,6 +62,13 @@ export default function Sidebar() {
         </NavLink>
 
         <NavLink
+          to="/dashboard/certificates"
+          className={navLinkClass}
+        >
+          Certificates
+        </NavLink>
+
+        <NavLink
           to="/dashboard/profile"
           className={navLinkClass}
         >

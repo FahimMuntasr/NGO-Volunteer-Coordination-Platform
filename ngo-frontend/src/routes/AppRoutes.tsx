@@ -11,14 +11,18 @@ import Events from "../pages/Events";
 import EventDetails from "../pages/EventDetails";
 import Profile from "../pages/Profile";
 import RegisteredEvents from "../pages/RegisteredEvents";
-import NotFound from "../pages/NotFound";
 import VolunteerHistory from "../pages/VolunteerHistory";
+import Certificates from "../pages/Certificates";
+import NotFound from "../pages/NotFound";
+import CertificateVerification from "../pages/CertificateVerification";
+
 import ProtectedRoute from "./ProtectedRoute";
 
 export default function AppRoutes() {
   return (
     <BrowserRouter>
       <Routes>
+
         {/* =========================
             Public Routes
         ========================== */}
@@ -26,6 +30,11 @@ export default function AppRoutes() {
         <Route
           path="/login"
           element={<Login />}
+        />
+
+        <Route
+          path="/certificate/verify/:verificationCode"
+          element={<CertificateVerification />}
         />
 
         {/* =========================
@@ -77,6 +86,24 @@ export default function AppRoutes() {
           }
         />
 
+        <Route
+          path="/dashboard/history"
+          element={
+            <ProtectedRoute>
+              <VolunteerHistory />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/dashboard/certificates"
+          element={
+            <ProtectedRoute>
+              <Certificates />
+            </ProtectedRoute>
+          }
+        />
+
         {/* =========================
             Default Route
         ========================== */}
@@ -90,14 +117,7 @@ export default function AppRoutes() {
             />
           }
         />
-<Route
-  path="/dashboard/history"
-  element={
-    <ProtectedRoute>
-      <VolunteerHistory />
-    </ProtectedRoute>
-  }
-/>
+
         {/* =========================
             404
         ========================== */}
@@ -106,6 +126,7 @@ export default function AppRoutes() {
           path="*"
           element={<NotFound />}
         />
+
       </Routes>
     </BrowserRouter>
   );

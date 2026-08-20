@@ -2,18 +2,57 @@ import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 
 import { getEvent, registerForEvent } from "../api/events";
+import {
+  getMyRegistrations,
+  type Registration,
+} from "../api/registration";
+
 import type { Event } from "../types/event";
+
 import DashboardLayout from "../layouts/DashboardLayout";
+
+function formatDateTime(date: string) {
+  return new Date(date).toLocaleString();
+}
+
+function getStatusClass(status: Registration["status"]) {
+  switch (status) {
+    case "APPROVED":
+      return "bg-green-100 text-green-700";
+
+    case "PENDING":
+      return "bg-yellow-100 text-yellow-700";
+
+    case "REJECTED":
+      return "bg-red-100 text-red-700";
+
+    case "CANCELLED":
+      return "bg-gray-100 text-gray-700";
+
+    case "COMPLETED":
+      return "bg-blue-100 text-blue-700";
+
+    default:
+      return "bg-gray-100 text-gray-700";
+  }
+}
 
 export default function EventDetails() {
   const { id } = useParams<{ id: string }>();
 
   const [event, setEvent] = useState<Event | null>(null);
-  const [loading, setLoading] = useState(true);
 
+  const [registration, setRegistration] =
+    useState<Registration | null>(null);
+
+  const [loading, setLoading] = useState(true);
   const [registering, setRegistering] = useState(false);
-  const [registrationSuccess, setRegistrationSuccess] = useState("");
-  const [registrationError, setRegistrationError] = useState("");
+
+  const [registrationSuccess, setRegistrationSuccess] =
+    useState("");
+
+  const [registrationError, setRegistrationError] =
+    useState("");
 
   useEffect(() => {
     async function loadEvent() {
@@ -24,11 +63,30 @@ export default function EventDetails() {
 
       try {
         setLoading(true);
+        setRegistrationError("");
 
-        const data = await getEvent(Number(id));
+        const [eventData, registrationsData] =
+          await Promise.all([
+            getEvent(Number(id)),
+            getMyRegistrations(),
+          ]);
 
-        setEvent(data);
-      } catch {
+        setEvent(eventData);
+
+        const existingRegistration =
+          registrationsData.find(
+            (item) => item.event === Number(id),
+          );
+
+        setRegistration(
+          existingRegistration ?? null,
+        );
+      } catch (error) {
+        console.error(
+          "Failed to load event:",
+          error,
+        );
+
         setEvent(null);
       } finally {
         setLoading(false);
@@ -48,7 +106,10 @@ export default function EventDetails() {
       setRegistrationSuccess("");
       setRegistrationError("");
 
-      await registerForEvent(Number(id));
+      const newRegistration =
+        await registerForEvent(Number(id));
+
+      setRegistration(newRegistration);
 
       setRegistrationSuccess(
         "You have successfully registered for this event.",
@@ -90,7 +151,9 @@ export default function EventDetails() {
           Event Details
         </h1>
 
-        <p className="text-gray-600">Loading event...</p>
+        <p className="text-gray-600">
+          Loading event...
+        </p>
       </DashboardLayout>
     );
   }
@@ -127,7 +190,9 @@ export default function EventDetails() {
         </Link>
 
         <div className="rounded-xl bg-white p-8 shadow-sm">
+
           {/* Header */}
+
           <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
             <div>
               <p className="mb-2 text-sm font-medium text-gray-500">
@@ -143,7 +208,13 @@ export default function EventDetails() {
               className={`w-fit rounded-full px-3 py-1 text-sm font-medium ${
                 event.status === "OPEN"
                   ? "bg-green-100 text-green-700"
-                  : "bg-gray-100 text-gray-700"
+                  : event.status === "IN_PROGRESS"
+                    ? "bg-blue-100 text-blue-700"
+                    : event.status === "COMPLETED"
+                      ? "bg-gray-100 text-gray-700"
+                      : event.status === "CANCELLED"
+                        ? "bg-red-100 text-red-700"
+                        : "bg-yellow-100 text-yellow-700"
               }`}
             >
               {event.status}
@@ -151,6 +222,7 @@ export default function EventDetails() {
           </div>
 
           {/* Description */}
+
           <div className="mb-8">
             <h2 className="mb-2 text-lg font-semibold">
               About this event
@@ -161,8 +233,10 @@ export default function EventDetails() {
             </p>
           </div>
 
-          {/* Event information */}
+          {/* Event Information */}
+
           <div className="grid gap-6 border-t pt-6 md:grid-cols-2">
+
             <div>
               <p className="text-sm font-medium text-gray-500">
                 Location
@@ -189,9 +263,7 @@ export default function EventDetails() {
               </p>
 
               <p className="mt-1 text-gray-900">
-                {new Date(
-                  event.start_date,
-                ).toLocaleString()}
+                {formatDateTime(event.start_date)}
               </p>
             </div>
 
@@ -201,9 +273,7 @@ export default function EventDetails() {
               </p>
 
               <p className="mt-1 text-gray-900">
-                {new Date(
-                  event.end_date,
-                ).toLocaleString()}
+                {formatDateTime(event.end_date)}
               </p>
             </div>
 
@@ -213,9 +283,9 @@ export default function EventDetails() {
               </p>
 
               <p className="mt-1 text-gray-900">
-                {new Date(
+                {formatDateTime(
                   event.registration_deadline,
-                ).toLocaleString()}
+                )}
               </p>
             </div>
 
@@ -228,9 +298,11 @@ export default function EventDetails() {
                 {event.status}
               </p>
             </div>
+
           </div>
 
-          {/* Required skills */}
+          {/* Required Skills */}
+
           {event.required_skills.length > 0 && (
             <div className="mt-8 border-t pt-6">
               <h2 className="mb-3 text-lg font-semibold">
@@ -238,20 +310,24 @@ export default function EventDetails() {
               </h2>
 
               <div className="flex flex-wrap gap-2">
-                {event.required_skills.map((skill) => (
-                  <span
-                    key={skill}
-                    className="rounded-full bg-blue-50 px-3 py-1 text-sm text-blue-700"
-                  >
-                    {skill}
-                  </span>
-                ))}
+                {event.required_skills.map(
+                  (skill) => (
+                    <span
+                      key={skill}
+                      className="rounded-full bg-blue-50 px-3 py-1 text-sm text-blue-700"
+                    >
+                      {skill}
+                    </span>
+                  ),
+                )}
               </div>
             </div>
           )}
 
           {/* Registration */}
+
           <div className="mt-8 border-t pt-6">
+
             {registrationSuccess && (
               <div className="mb-4 rounded-lg bg-green-50 p-4 text-green-700">
                 {registrationSuccess}
@@ -264,20 +340,78 @@ export default function EventDetails() {
               </div>
             )}
 
-            <button
-              type="button"
-              onClick={handleRegister}
-              disabled={
-                event.status !== "OPEN" || registering
-              }
-              className="w-full rounded-lg bg-blue-600 px-6 py-3 font-semibold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-gray-300"
-            >
-              {registering
-                ? "Registering..."
-                : event.status === "OPEN"
-                  ? "Register for Event"
-                  : "Registration Unavailable"}
-            </button>
+            {registration ? (
+              <div className="rounded-lg border bg-gray-50 p-5">
+
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+
+                  <div>
+                    <h3 className="font-semibold text-gray-900">
+                      You are already registered
+                    </h3>
+
+                    <p className="mt-1 text-sm text-gray-500">
+                      Registration ID:{" "}
+                      {registration.id}
+                    </p>
+                  </div>
+
+                  <span
+                    className={`w-fit rounded-full px-3 py-1 text-sm font-medium ${getStatusClass(
+                      registration.status,
+                    )}`}
+                  >
+                    {registration.status}
+                  </span>
+
+                </div>
+
+                <div className="mt-4 grid gap-3 text-sm text-gray-600 md:grid-cols-2">
+
+                  <div>
+                    <span className="font-medium text-gray-900">
+                      Registered:
+                    </span>{" "}
+                    {formatDateTime(
+                      registration.registered_at,
+                    )}
+                  </div>
+
+                  <div>
+                    <span className="font-medium text-gray-900">
+                      Attendance:
+                    </span>{" "}
+                    {registration.attendance_status}
+                  </div>
+
+                </div>
+
+                <Link
+                  to="/dashboard/registered-events"
+                  className="mt-5 inline-block text-sm font-medium text-blue-600 hover:underline"
+                >
+                  View all my registrations →
+                </Link>
+
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={handleRegister}
+                disabled={
+                  event.status !== "OPEN" ||
+                  registering
+                }
+                className="w-full rounded-lg bg-blue-600 px-6 py-3 font-semibold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-gray-300"
+              >
+                {registering
+                  ? "Registering..."
+                  : event.status === "OPEN"
+                    ? "Register for Event"
+                    : "Registration Unavailable"}
+              </button>
+            )}
+
           </div>
         </div>
       </div>
