@@ -16,6 +16,7 @@ from .views import (
     EventOpenView,
     EventStartView,
     EventCancelView,
+    EventCompleteView,
 )
 
 
@@ -107,5 +108,11 @@ urlpatterns = [
         "<int:event_id>/cancel/",
         EventCancelView.as_view(),
         name="event-cancel",
-    ),    
+    ), 
+    
+    path(
+        "<int:event_id>/complete/",
+        EventCompleteView.as_view(),
+        name="event-complete",
+    ),   
 ]
