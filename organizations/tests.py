@@ -457,3 +457,63 @@ class NGOVerificationTests(APITestCase):
             "registration_number",
             response.data,
         )
+        
+    def test_expired_ngo_registration_is_rejected(self):
+        from datetime import timedelta
+        from django.utils import timezone
+
+        self.registry_entry.valid_upto = (
+            timezone.localdate() - timedelta(days=1)
+        )
+        self.registry_entry.save(
+            update_fields=["valid_upto"]
+        )
+
+        self.client.force_authenticate(
+            user=self.admin
+        )
+
+        response = self.client.post(
+            reverse(
+                "ngo-verify",
+                args=[self.ngo.id],
+            ),
+            {
+                "registration_number": "3287",
+            },
+            format="json",
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_200_OK,
+        )
+
+        self.ngo.refresh_from_db()
+
+        self.assertFalse(
+            self.ngo.is_verified
+        )
+
+        self.assertEqual(
+            self.ngo.verification_status,
+            NGO.VerificationStatus.REJECTED,
+        )
+
+        self.assertEqual(
+            self.ngo.registry_entry,
+            self.registry_entry,
+        )
+
+        self.assertIsNone(
+            self.ngo.verified_at
+        )
+
+        self.assertFalse(
+            response.data["verified"]
+        )
+
+        self.assertEqual(
+            response.data["message"],
+            "NGO registration has expired.",
+        )

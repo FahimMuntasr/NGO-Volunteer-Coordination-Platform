@@ -81,7 +81,32 @@ class NGOVerificationService:
                 "official registry."
             )
 
-        # Everything matches.
+
+        # Check whether the NGO registration has expired.
+        if (
+            registry_entry.valid_upto
+            and registry_entry.valid_upto < timezone.localdate()
+        ):
+            ngo.is_verified = False
+            ngo.verification_status = (
+                NGO.VerificationStatus.REJECTED
+            )
+            ngo.registry_entry = registry_entry
+            ngo.verified_at = None
+
+            ngo.save(
+                update_fields=[
+                    "is_verified",
+                    "verification_status",
+                    "registry_entry",
+                    "verified_at",
+                ]
+            )
+
+            return False, "NGO registration has expired."
+
+
+        # Everything matches and registration is still valid.
         ngo.is_verified = True
         ngo.verification_status = (
             NGO.VerificationStatus.VERIFIED
@@ -90,11 +115,11 @@ class NGOVerificationService:
         ngo.verified_at = timezone.now()
 
         ngo.save(
-            update_fields=[
-                "is_verified",
-                "verification_status",
-                "registry_entry",
-                "verified_at",
+                update_fields=[
+                    "is_verified",
+                    "verification_status",
+                    "registry_entry",
+                    "verified_at",
             ]
         )
 
