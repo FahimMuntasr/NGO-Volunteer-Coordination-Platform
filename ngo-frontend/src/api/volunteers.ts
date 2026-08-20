@@ -1,34 +1,33 @@
 import api from "../services/api";
+
 import type {
   VolunteerProfile,
-  AvailableSkill,
+  Skill,
+  UpdateVolunteerProfileRequest,
 } from "../types/volunteer";
 
 export async function getVolunteerProfile(): Promise<VolunteerProfile> {
   const response = await api.get<VolunteerProfile>(
-    "/volunteers/me/",
+    "/api/volunteers/me/",
   );
 
   return response.data;
 }
 
-export async function updateVolunteerProfile(data: {
-  skill_ids?: number[];
-  availability_notes?: string;
-}): Promise<VolunteerProfile> {
+export async function getAvailableSkills(): Promise<Skill[]> {
+  const response = await api.get<Skill[]>(
+    "/api/volunteers/skills/",
+  );
+
+  return response.data;
+}
+
+export async function updateVolunteerProfile(
+  data: UpdateVolunteerProfileRequest,
+): Promise<VolunteerProfile> {
   const response = await api.patch<VolunteerProfile>(
-    "/volunteers/me/",
+    "/api/volunteers/me/",
     data,
-  );
-
-  return response.data;
-}
-
-export async function getAvailableSkills(): Promise<
-  AvailableSkill[]
-> {
-  const response = await api.get<AvailableSkill[]>(
-    "/volunteers/skills/",
   );
 
   return response.data;

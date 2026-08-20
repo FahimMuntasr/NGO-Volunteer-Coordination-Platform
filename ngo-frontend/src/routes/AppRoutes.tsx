@@ -11,6 +11,7 @@ import Events from "../pages/Events";
 import EventDetails from "../pages/EventDetails";
 import Profile from "../pages/Profile";
 import MyEvents from "../pages/MyEvents";
+import RegisteredEvents from "../pages/RegisteredEvents";
 import NotFound from "../pages/NotFound";
 
 import ProtectedRoute from "./ProtectedRoute";
@@ -19,14 +20,19 @@ export default function AppRoutes() {
   return (
     <BrowserRouter>
       <Routes>
+        {/* =========================
+            Public Routes
+        ========================== */}
 
-        {/* Public route */}
         <Route
           path="/login"
           element={<Login />}
         />
 
-        {/* Protected routes */}
+        {/* =========================
+            Protected Routes
+        ========================== */}
+
         <Route
           path="/dashboard"
           element={
@@ -72,7 +78,19 @@ export default function AppRoutes() {
           }
         />
 
-        {/* Default route */}
+        <Route
+          path="/dashboard/registered-events"
+          element={
+            <ProtectedRoute>
+              <RegisteredEvents />
+            </ProtectedRoute>
+          }
+        />
+
+        {/* =========================
+            Default Route
+        ========================== */}
+
         <Route
           path="/"
           element={
@@ -83,12 +101,14 @@ export default function AppRoutes() {
           }
         />
 
-        {/* 404 */}
+        {/* =========================
+            404
+        ========================== */}
+
         <Route
           path="*"
           element={<NotFound />}
         />
-
       </Routes>
     </BrowserRouter>
   );
