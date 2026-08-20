@@ -11,6 +11,7 @@ from donations.models import Donation
 from events.models import Event, Registration
 
 from .models import NGO
+from .services import NGOVerificationService
 
 
 class NGODashboardView(APIView):
@@ -107,5 +108,89 @@ class NGODashboardView(APIView):
 
         return Response(
             data,
+            status=status.HTTP_200_OK,
+        )
+        
+class NGOVerificationView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, ngo_id):
+
+        if request.user.role != User.Role.NGO_ADMIN:
+            return Response(
+                {
+                    "detail": (
+                        "Only NGO administrators "
+                        "can verify an NGO."
+                    )
+                },
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        ngo = get_object_or_404(
+            NGO,
+            pk=ngo_id,
+        )
+
+        if ngo.administrator_id != request.user.id:
+            return Response(
+                {
+                    "detail": (
+                        "You do not have permission "
+                        "to verify this NGO."
+                    )
+                },
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        registration_number = request.data.get(
+            "registration_number"
+        )
+
+        if not registration_number:
+            return Response(
+                {
+                    "registration_number": (
+                        "This field is required."
+                    )
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        ngo.registration_number = (
+            registration_number.strip()
+        )
+
+        ngo.verification_status = (
+            NGO.VerificationStatus.PENDING
+        )
+
+        ngo.is_verified = False
+
+        ngo.save(
+            update_fields=[
+                "registration_number",
+                "verification_status",
+                "is_verified",
+            ]
+        )
+
+        verified, message = (
+            NGOVerificationService.verify(ngo)
+        )
+
+        return Response(
+            {
+                "ngo_id": ngo.id,
+                "ngo_name": ngo.name,
+                "registration_number": (
+                    ngo.registration_number
+                ),
+                "verified": verified,
+                "verification_status": (
+                    ngo.verification_status
+                ),
+                "message": message,
+            },
             status=status.HTTP_200_OK,
         )
