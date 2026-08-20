@@ -3,7 +3,7 @@ import {
   useNavigate,
 } from "react-router-dom";
 
-import { useAuth } from "../../context/AuthContext";
+import { useAuth } from "../../context/useAuth";
 
 export default function Sidebar() {
   const { logout } = useAuth();
@@ -30,7 +30,6 @@ export default function Sidebar() {
 
   return (
     <aside className="w-64 shrink-0 border-r bg-white p-4">
-
       <nav className="space-y-2">
 
         <NavLink
@@ -45,14 +44,21 @@ export default function Sidebar() {
           to="/dashboard/events"
           className={navLinkClass}
         >
-          Events
+          Browse Events
         </NavLink>
 
         <NavLink
-          to="/dashboard/my-events"
+          to="/dashboard/registered-events"
           className={navLinkClass}
         >
-          My Events
+          My Registrations
+        </NavLink>
+
+        <NavLink
+          to="/dashboard/history"
+          className={navLinkClass}
+        >
+          History
         </NavLink>
 
         <NavLink
@@ -71,7 +77,6 @@ export default function Sidebar() {
         </button>
 
       </nav>
-
     </aside>
   );
 }

@@ -19,3 +19,21 @@ export type UpdateVolunteerProfileRequest = {
   skill_ids?: number[];
   availability_notes?: string;
 };
+
+export type AttendanceStatus =
+  | "NOT_MARKED"
+  | "PRESENT"
+  | "ABSENT"
+  | "EXCUSED";
+
+export type VolunteerHistoryItem = {
+  id: number;
+  event: number;
+  event_title: string;
+  ngo_name: string;
+  event_start_date: string;
+  event_end_date: string;
+  attendance_status: AttendanceStatus;
+  hours_earned: string;
+  status: "COMPLETED";
+};

@@ -4,6 +4,7 @@ import type {
   VolunteerProfile,
   Skill,
   UpdateVolunteerProfileRequest,
+  VolunteerHistoryItem,
 } from "../types/volunteer";
 
 export async function getVolunteerProfile(): Promise<VolunteerProfile> {
@@ -28,6 +29,16 @@ export async function updateVolunteerProfile(
   const response = await api.patch<VolunteerProfile>(
     "/api/volunteers/me/",
     data,
+  );
+
+  return response.data;
+}
+
+export async function getVolunteerHistory(): Promise<
+  VolunteerHistoryItem[]
+> {
+  const response = await api.get<VolunteerHistoryItem[]>(
+    "/api/volunteers/me/history/",
   );
 
   return response.data;

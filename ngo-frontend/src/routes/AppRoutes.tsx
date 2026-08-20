@@ -10,10 +10,9 @@ import Dashboard from "../pages/Dashboard";
 import Events from "../pages/Events";
 import EventDetails from "../pages/EventDetails";
 import Profile from "../pages/Profile";
-import MyEvents from "../pages/MyEvents";
 import RegisteredEvents from "../pages/RegisteredEvents";
 import NotFound from "../pages/NotFound";
-
+import VolunteerHistory from "../pages/VolunteerHistory";
 import ProtectedRoute from "./ProtectedRoute";
 
 export default function AppRoutes() {
@@ -70,15 +69,6 @@ export default function AppRoutes() {
         />
 
         <Route
-          path="/dashboard/my-events"
-          element={
-            <ProtectedRoute>
-              <MyEvents />
-            </ProtectedRoute>
-          }
-        />
-
-        <Route
           path="/dashboard/registered-events"
           element={
             <ProtectedRoute>
@@ -100,7 +90,14 @@ export default function AppRoutes() {
             />
           }
         />
-
+<Route
+  path="/dashboard/history"
+  element={
+    <ProtectedRoute>
+      <VolunteerHistory />
+    </ProtectedRoute>
+  }
+/>
         {/* =========================
             404
         ========================== */}

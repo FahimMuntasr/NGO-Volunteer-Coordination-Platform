@@ -86,9 +86,12 @@ export default function Dashboard() {
                 View Profile
               </Link>
 
-              <button className="rounded-lg bg-gray-100 px-4 py-3 text-left font-medium text-gray-800 hover:bg-gray-200">
-                My Registrations
-              </button>
+              <Link
+  to="/dashboard/registered-events"
+  className="rounded-lg bg-gray-100 px-4 py-3 text-left font-medium text-gray-800 hover:bg-gray-200"
+>
+  My Registrations
+</Link>
             </div>
           </div>
         </div>
