@@ -45,6 +45,7 @@ class EventCreationTests(APITestCase):
             name="Helping Hands",
             email="helpinghands@example.com",
             administrator=self.admin,
+            is_verified=True,
         )
         self.now = timezone.now()
         self.start = timezone.now() + timedelta(days=10)
@@ -162,6 +163,32 @@ class EventCreationTests(APITestCase):
         self.assertEqual(
             event.status,
             Event.Status.DRAFT,
+        )
+    
+    def test_unverified_ngo_cannot_create_event(self):
+        self.ngo.is_verified = False
+        self.ngo.save(
+            update_fields=["is_verified"]
+        )
+
+        self.client.force_authenticate(
+            user=self.admin
+        )
+
+        response = self.client.post(
+            reverse("event-create"),
+            self.valid_data,
+            format="json",
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_403_FORBIDDEN,
+        )
+
+        self.assertEqual(
+            Event.objects.count(),
+            0,
         )
         
 class EventRegistrationTests(APITestCase):

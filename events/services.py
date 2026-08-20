@@ -85,5 +85,12 @@ class ProxyEventService(AbstractEventService):
             raise PermissionDenied(
                 "Only NGO administrators can create events."
             )
+        ngo = event_data.get("ngo")
+
+        # NGO must be verified before creating events.
+        if ngo is None or not ngo.is_verified:
+            raise PermissionDenied(
+                "Only verified NGOs can create events."
+            )
 
         return self._real_service.create_event(user, event_data)
