@@ -3,7 +3,6 @@ from rest_framework import serializers
 from .models import Event, Registration, Team, TeamMembership
 from volunteering.models import Skill
 
-
 class EventSerializer(serializers.ModelSerializer):
     ngo_name = serializers.CharField(
         source="ngo.name",
@@ -94,7 +93,7 @@ class EventCreateSerializer(serializers.ModelSerializer):
             )
 
         return attrs
-
+        
 class EventUpdateSerializer(serializers.ModelSerializer):
     required_skill_ids = serializers.PrimaryKeyRelatedField(
         queryset=Skill.objects.all(),

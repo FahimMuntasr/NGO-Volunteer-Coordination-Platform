@@ -28,6 +28,22 @@ from .serializers import (
     TeamMembershipSerializer,
 )
 
+from notifications.domain_events import (
+    EventPublished,
+    RegistrationCreated,
+    RegistrationStatusChanged,
+    TeamMemberAssigned,
+)
+from notifications.observers import notification_subject
+
+from .registration_decorators import (
+    BasicRegistrationService,
+    CapacityDecorator,
+    DuplicateRegistrationDecorator,
+    EventOpenDecorator,
+    RegistrationDeadlineDecorator,
+)
+
 def user_can_manage_event(user, event):
     """Return True when the user administers the event's NGO."""
     return (
@@ -117,6 +133,7 @@ class EventCreateView(CreateAPIView):
             headers=headers,
         )
 
+
 class EventUpdateView(UpdateAPIView):
     queryset = Event.objects.select_related("ngo")
     serializer_class = EventUpdateSerializer
@@ -134,6 +151,16 @@ class EventUpdateView(UpdateAPIView):
             )
 
         return event
+    
+    def perform_update(self, serializer):
+        previous_status = serializer.instance.status
+        event = serializer.save()
+
+        if (
+            previous_status != Event.Status.OPEN
+            and event.status == Event.Status.OPEN
+        ):
+            notification_subject.notify(EventPublished(event))
 
 class EventRegistrationView(APIView):
     permission_classes = [IsAuthenticated]
@@ -168,60 +195,23 @@ class EventRegistrationView(APIView):
 
         event = get_object_or_404(Event, pk=pk)
 
-        # Registration is allowed only for open events.
-        if event.status != Event.Status.OPEN:
-            return Response(
-                {
-                    "detail": (
-                        "This event is not open for registration."
+        registration_service = EventOpenDecorator(
+        RegistrationDeadlineDecorator(
+            DuplicateRegistrationDecorator(
+                CapacityDecorator(
+                    BasicRegistrationService()
                     )
-                },
-                status=status.HTTP_400_BAD_REQUEST,
+                )
             )
+        )
 
-        # Prevent registration after the deadline.
-        if timezone.now() >= event.registration_deadline:
-            return Response(
-                {
-                    "detail": (
-                        "The registration deadline has passed."
-                    )
-                },
-                status=status.HTTP_400_BAD_REQUEST,
-            )
+        registration = registration_service.register(
+        volunteer_profile,
+        event,
+        )
 
-        # Prevent duplicate registration.
-        already_registered = Registration.objects.filter(
-            event=event,
-            volunteer=volunteer_profile,
-        ).exists()
-
-        if already_registered:
-            return Response(
-                {
-                    "detail": (
-                        "You have already registered for this event."
-                    )
-                },
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-
-        # Stop registration when all places are already approved.
-        approved_count = event.registrations.filter(
-            status=Registration.Status.APPROVED,
-        ).count()
-
-        if approved_count >= event.volunteer_capacity:
-            return Response(
-                {
-                    "detail": "This event has reached its capacity."
-                },
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-
-        registration = Registration.objects.create(
-            event=event,
-            volunteer=volunteer_profile,
+        notification_subject.notify(
+            RegistrationCreated(registration)
         )
 
         return Response(
@@ -324,6 +314,10 @@ class RegistrationApproveView(APIView):
             ]
         )
 
+        notification_subject.notify(
+            RegistrationStatusChanged(registration)
+        )
+
         return Response(
             {
                 "message": "Registration approved successfully.",
@@ -377,6 +371,10 @@ class RegistrationRejectView(APIView):
                 "status",
                 "approved_at",
             ]
+        )
+
+        notification_subject.notify(
+            RegistrationStatusChanged(registration)
         )
 
         return Response(
@@ -533,6 +531,10 @@ class AddTeamMemberView(APIView):
             assigned_task=assigned_task,
         )
 
+        notification_subject.notify(
+            TeamMemberAssigned(membership)
+        )
+
         return Response(
             TeamMembershipSerializer(membership).data,
             status=status.HTTP_201_CREATED,
@@ -635,7 +637,13 @@ class EventOpenView(APIView):
             )
 
         event.status = Event.Status.OPEN
-        event.save(update_fields=["status"])
+        event.save(
+            update_fields=["status"]
+        )
+
+        notification_subject.notify(
+            EventPublished(event)
+        )
 
         return Response(
             {

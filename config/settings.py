@@ -1,3 +1,4 @@
+
 """
 Django settings for config project.
 
@@ -72,6 +73,7 @@ INSTALLED_APPS = [
     "volunteering",
     "donations",
     "certificates",
+    "notifications"
 ]
 
 MIDDLEWARE = [

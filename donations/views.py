@@ -13,6 +13,8 @@ from .serializers import (
     DonationSerializer,
 )
 
+from notifications.domain_events import DonationReceived
+from notifications.observers import notification_subject
 
 class DonationCreateView(APIView):
     permission_classes = [IsAuthenticated]
@@ -38,6 +40,8 @@ class DonationCreateView(APIView):
                 donor=request.user,
                 donor_name=donor_name,
             )
+
+            notification_subject.notify(DonationReceived(donation))
 
             return Response(
                 DonationSerializer(donation).data,

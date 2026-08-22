@@ -20,6 +20,19 @@ from .models import (
     TeamMembership,
 )
 
+from rest_framework.exceptions import (
+    ValidationError as DRFValidationError,
+)
+
+from .registration_decorators import (
+    BasicRegistrationService,
+    CapacityDecorator,
+    DuplicateRegistrationDecorator,
+    EventOpenDecorator,
+    RegistrationDeadlineDecorator,
+    RegistrationService,
+)
+
 from accounts.models import User
 from events.models import Event, Registration
 from events.services import ProxyEventService, RealEventService
@@ -2080,3 +2093,276 @@ class EventCompletionFacadeTests(APITestCase):
             self.event.status,
             Event.Status.IN_PROGRESS,
         )
+        
+class RegistrationDecoratorTests(TestCase):
+
+    def setUp(self):
+        self.admin = User.objects.create_user(
+            username="decorator_admin",
+            password="test123",
+            role=User.Role.NGO_ADMIN,
+        )
+
+        self.volunteer_user = User.objects.create_user(
+            username="decorator_volunteer",
+            password="test123",
+            role=User.Role.VOLUNTEER,
+        )
+
+        self.volunteer, _ = (
+            VolunteerProfile.objects.get_or_create(
+                user=self.volunteer_user
+            )
+        )
+
+        self.ngo = NGO.objects.create(
+            name="Decorator NGO",
+            email="decorator@example.com",
+            administrator=self.admin,
+        )
+
+        self.start = (
+            timezone.now()
+            + timedelta(days=10)
+        )
+
+        self.event = Event.objects.create(
+            ngo=self.ngo,
+            created_by=self.admin,
+            title="Decorator Test Event",
+            description="Testing Decorator Pattern",
+            location="Dhaka",
+            start_date=self.start,
+            end_date=(
+                self.start + timedelta(hours=3)
+            ),
+            registration_deadline=(
+                self.start - timedelta(days=1)
+            ),
+            volunteer_capacity=10,
+            status=Event.Status.OPEN,
+        )
+
+    def get_decorated_service(self):
+        return EventOpenDecorator(
+            RegistrationDeadlineDecorator(
+                DuplicateRegistrationDecorator(
+                    CapacityDecorator(
+                        BasicRegistrationService()
+                    )
+                )
+            )
+        )
+
+    def test_decorated_service_is_registration_service(self):
+        service = self.get_decorated_service()
+
+        self.assertIsInstance(
+            service,
+            RegistrationService,
+        )
+
+    def test_decorator_chain_creates_registration(self):
+        service = self.get_decorated_service()
+
+        registration = service.register(
+            self.volunteer,
+            self.event,
+        )
+
+        self.assertEqual(
+            registration.volunteer,
+            self.volunteer,
+        )
+
+        self.assertEqual(
+            registration.event,
+            self.event,
+        )
+
+        self.assertEqual(
+            Registration.objects.count(),
+            1,
+        )
+
+    def test_event_open_decorator_blocks_draft_event(self):
+        self.event.status = Event.Status.DRAFT
+        self.event.save(
+            update_fields=["status"]
+        )
+
+        service = EventOpenDecorator(
+            BasicRegistrationService()
+        )
+
+        with self.assertRaises(
+            DRFValidationError
+        ):
+            service.register(
+                self.volunteer,
+                self.event,
+            )
+
+        self.assertEqual(
+            Registration.objects.count(),
+            0,
+        )
+
+    def test_deadline_decorator_blocks_expired_event(self):
+        self.event.registration_deadline = (
+            timezone.now()
+            - timedelta(hours=1)
+        )
+
+        self.event.save(
+            update_fields=[
+                "registration_deadline"
+            ]
+        )
+
+        service = RegistrationDeadlineDecorator(
+            BasicRegistrationService()
+        )
+
+        with self.assertRaises(
+            DRFValidationError
+        ):
+            service.register(
+                self.volunteer,
+                self.event,
+            )
+
+        self.assertEqual(
+            Registration.objects.count(),
+            0,
+        )
+
+    def test_duplicate_decorator_blocks_duplicate(self):
+        Registration.objects.create(
+            event=self.event,
+            volunteer=self.volunteer,
+        )
+
+        service = DuplicateRegistrationDecorator(
+            BasicRegistrationService()
+        )
+
+        with self.assertRaises(
+            DRFValidationError
+        ):
+            service.register(
+                self.volunteer,
+                self.event,
+            )
+
+        self.assertEqual(
+            Registration.objects.count(),
+            1,
+        )
+
+    def test_capacity_decorator_blocks_full_event(self):
+        self.event.volunteer_capacity = 1
+        self.event.save(
+            update_fields=["volunteer_capacity"]
+        )
+
+        other_user = User.objects.create_user(
+            username="capacity_volunteer",
+            password="test123",
+            role=User.Role.VOLUNTEER,
+        )
+
+        other_volunteer, _ = (
+            VolunteerProfile.objects.get_or_create(
+                user=other_user
+            )
+        )
+
+        Registration.objects.create(
+            event=self.event,
+            volunteer=other_volunteer,
+            status=Registration.Status.APPROVED,
+        )
+
+        service = CapacityDecorator(
+            BasicRegistrationService()
+        )
+
+        with self.assertRaises(
+            DRFValidationError
+        ):
+            service.register(
+                self.volunteer,
+                self.event,
+            )
+
+        self.assertEqual(
+            Registration.objects.count(),
+            1,
+        )
+
+
+from datetime import timedelta
+
+from django.test import TestCase
+from django.utils import timezone
+
+from accounts.models import User
+from organizations.models import NGO
+from volunteering.models import Skill
+
+from .builders import (
+    DraftEventBuilder,
+    EventDirector,
+    PublishedEventBuilder,
+)
+
+
+class EventBuilderTests(TestCase):
+    def setUp(self):
+        self.admin = User.objects.create_user(
+            username="event_admin",
+            password="test-password",
+            role=User.Role.NGO_ADMIN,
+        )
+
+        self.ngo = NGO.objects.create(
+            name="Helping Hands",
+            email="helpinghands@example.com",
+            administrator=self.admin,
+        )
+
+        self.skill = Skill.objects.create(name="First Aid")
+
+        now = timezone.now()
+
+        self.event_data = {
+            "ngo": self.ngo,
+            "created_by": self.admin,
+            "title": "Community Cleanup",
+            "description": "Clean the local park.",
+            "location": "Central Park",
+            "start_date": now + timedelta(days=3),
+            "end_date": now + timedelta(days=3, hours=3),
+            "registration_deadline": now + timedelta(days=2),
+            "volunteer_capacity": 20,
+            "required_skills": [self.skill],
+        }
+
+    def test_director_builds_a_draft_event(self):
+        event = EventDirector().build_event(
+            DraftEventBuilder(),
+            **self.event_data,
+        )
+
+        self.assertEqual(event.status, "DRAFT")
+        self.assertEqual(event.required_skills.count(), 1)
+
+    def test_director_builds_a_published_event(self):
+        event = EventDirector().build_event(
+            PublishedEventBuilder(),
+            **self.event_data,
+        )
+
+        self.assertEqual(event.status, "OPEN")
+        self.assertEqual(event.required_skills.count(), 1)

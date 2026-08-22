@@ -7,6 +7,11 @@ from accounts.models import User
 
 from .models import Event
 
+from .builders import (
+    DraftEventBuilder,
+    EventDirector,
+)
+
 
 # Subject Interface
 class AbstractEventService(ABC):
@@ -31,15 +36,31 @@ class RealEventService(AbstractEventService):
         return Event.objects.all()
 
     def create_event(self, user, event_data):
-        # Assign many-to-many skills after creating the event.
-        required_skills = event_data.pop("required_skills", None)
+        required_skills = event_data.pop(
+            "required_skills",
+            [],
+        )
 
-        event = Event.objects.create(**event_data)
+        builder = DraftEventBuilder()
+        director = EventDirector()
 
-        if required_skills is not None:
-            event.required_skills.set(required_skills)
-
-        return event
+        return director.build_event(
+            builder,
+            ngo=event_data["ngo"],
+            created_by=event_data["created_by"],
+            title=event_data["title"],
+            description=event_data["description"],
+            location=event_data["location"],
+            start_date=event_data["start_date"],
+            end_date=event_data["end_date"],
+            registration_deadline=event_data[
+                "registration_deadline"
+            ],
+            volunteer_capacity=event_data[
+                "volunteer_capacity"
+            ],
+            required_skills=required_skills,
+        )
 
 
 # Proxy Subject
