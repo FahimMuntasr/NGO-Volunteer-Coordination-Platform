@@ -1716,3 +1716,69 @@ class EventModelConstraintTests(APITestCase):
 
         with self.assertRaises(ValidationError):
             event.full_clean()
+
+
+from datetime import timedelta
+
+from django.test import TestCase
+from django.utils import timezone
+
+from accounts.models import User
+from organizations.models import NGO
+from volunteering.models import Skill
+
+from .builders import (
+    DraftEventBuilder,
+    EventDirector,
+    PublishedEventBuilder,
+)
+
+
+class EventBuilderTests(TestCase):
+    def setUp(self):
+        self.admin = User.objects.create_user(
+            username="event_admin",
+            password="test-password",
+            role=User.Role.NGO_ADMIN,
+        )
+
+        self.ngo = NGO.objects.create(
+            name="Helping Hands",
+            email="helpinghands@example.com",
+            administrator=self.admin,
+        )
+
+        self.skill = Skill.objects.create(name="First Aid")
+
+        now = timezone.now()
+
+        self.event_data = {
+            "ngo": self.ngo,
+            "created_by": self.admin,
+            "title": "Community Cleanup",
+            "description": "Clean the local park.",
+            "location": "Central Park",
+            "start_date": now + timedelta(days=3),
+            "end_date": now + timedelta(days=3, hours=3),
+            "registration_deadline": now + timedelta(days=2),
+            "volunteer_capacity": 20,
+            "required_skills": [self.skill],
+        }
+
+    def test_director_builds_a_draft_event(self):
+        event = EventDirector().build_event(
+            DraftEventBuilder(),
+            **self.event_data,
+        )
+
+        self.assertEqual(event.status, "DRAFT")
+        self.assertEqual(event.required_skills.count(), 1)
+
+    def test_director_builds_a_published_event(self):
+        event = EventDirector().build_event(
+            PublishedEventBuilder(),
+            **self.event_data,
+        )
+
+        self.assertEqual(event.status, "OPEN")
+        self.assertEqual(event.required_skills.count(), 1)
