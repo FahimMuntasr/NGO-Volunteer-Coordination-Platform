@@ -1,5 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
+import { useAuth } from "../context/useAuth";
+import NGOAdminDashboard from "./admin/NGOAdminDashboard";
 
 import DashboardLayout from "../layouts/DashboardLayout";
 import StatCard from "../components/common/StatCard";
@@ -39,8 +41,20 @@ export default function Dashboard() {
 
   const [error, setError] = useState("");
 
+  const { user } = useAuth();
+
   useEffect(() => {
     async function loadDashboard() {
+      if (!user) {
+        setLoading(false);
+        return;
+      }
+      
+      if (user.role !== "VOLUNTEER") {
+        setLoading(false);
+        return;
+      }
+
       try {
         setLoading(true);
         setError("");
@@ -79,7 +93,27 @@ export default function Dashboard() {
     }
 
     loadDashboard();
-  }, []);
+  }, [user]);
+
+  if (user?.role === "NGO_ADMIN") {
+    return <NGOAdminDashboard />;
+  }
+
+  if (user && user.role !== "VOLUNTEER") {
+    return (
+      <DashboardLayout>
+        <div className="rounded-xl bg-white p-8 shadow">
+          <h1 className="text-3xl font-bold">
+            Welcome, {user.first_name || user.username}
+          </h1>
+  
+          <p className="mt-2 text-gray-600">
+            Role: {user.role}
+          </p>
+        </div>
+      </DashboardLayout>
+    );
+  }
 
   const now = new Date();
 

@@ -163,22 +163,24 @@ export default function VolunteerHistory() {
                 <div className="mt-5 grid gap-4 text-sm md:grid-cols-2">
                   <div>
                     <p className="font-medium text-gray-900">
-                      Date
+                      Start
                     </p>
 
                     <p className="mt-1 text-gray-600">
                       {formatDate(item.event_start_date)}
+                      {" — "}
+                      {formatTime(item.event_start_date)}
                     </p>
                   </div>
 
                   <div>
                     <p className="font-medium text-gray-900">
-                      Time
+                      End
                     </p>
 
                     <p className="mt-1 text-gray-600">
-                      {formatTime(item.event_start_date)}{" "}
-                      –{" "}
+                      {formatDate(item.event_end_date)}
+                      {" — "}
                       {formatTime(item.event_end_date)}
                     </p>
                   </div>
@@ -200,11 +202,11 @@ export default function VolunteerHistory() {
 
                     <div>
                       <p className="text-sm text-gray-500">
-                        Hours Earned
-                      </p>
+                          Volunteer Hours Earned
+                        </p>
 
                       <p className="mt-1 text-2xl font-bold text-gray-900">
-                        {item.hours_earned}
+                          {item.hours_earned} hours
                       </p>
                     </div>
                   </div>

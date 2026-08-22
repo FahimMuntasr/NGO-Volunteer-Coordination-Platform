@@ -18,6 +18,8 @@ export interface Event {
   volunteer_capacity: number;
   required_skills: string[];
   status: EventStatus;
+  coordinator: number | null;
+  coordinator_username: string | null;
 }
 
 export type RegistrationStatus =

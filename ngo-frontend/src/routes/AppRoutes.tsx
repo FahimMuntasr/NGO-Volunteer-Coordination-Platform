@@ -15,6 +15,16 @@ import VolunteerHistory from "../pages/VolunteerHistory";
 import Certificates from "../pages/Certificates";
 import NotFound from "../pages/NotFound";
 import CertificateVerification from "../pages/CertificateVerification";
+import AdminEvents from "../pages/admin/AdminEvents";
+import CreateEvent from "../pages/admin/CreateEvent";
+import NGOVerification from "../pages/admin/NGOVerification";
+import AdminRegistrations from "../pages/admin/AdminRegistrations";
+import AdminDonations from "../pages/admin/AdminDonations";
+import AssignCoordinator from "../pages/admin/AssignCoordinator";
+import CoordinatorEvents from "../pages/coordinator/CoordinatorEvents";
+import CoordinatorTeams from "../pages/coordinator/CoordinatorTeams";
+import CoordinatorAttendance from "../pages/coordinator/CoordinatorAttendance";
+import Register from "../pages/Register";
 
 import ProtectedRoute from "./ProtectedRoute";
 
@@ -30,6 +40,11 @@ export default function AppRoutes() {
         <Route
           path="/login"
           element={<Login />}
+        />
+
+        <Route
+          path="/register"
+          element={<Register />}
         />
 
         <Route
@@ -71,7 +86,7 @@ export default function AppRoutes() {
         <Route
           path="/dashboard/profile"
           element={
-            <ProtectedRoute>
+            <ProtectedRoute allowedRoles={["VOLUNTEER"]}>
               <Profile />
             </ProtectedRoute>
           }
@@ -80,7 +95,7 @@ export default function AppRoutes() {
         <Route
           path="/dashboard/registered-events"
           element={
-            <ProtectedRoute>
+            <ProtectedRoute allowedRoles={["VOLUNTEER"]}>
               <RegisteredEvents />
             </ProtectedRoute>
           }
@@ -89,7 +104,7 @@ export default function AppRoutes() {
         <Route
           path="/dashboard/history"
           element={
-            <ProtectedRoute>
+            <ProtectedRoute allowedRoles={["VOLUNTEER"]}>
               <VolunteerHistory />
             </ProtectedRoute>
           }
@@ -98,7 +113,7 @@ export default function AppRoutes() {
         <Route
           path="/dashboard/certificates"
           element={
-            <ProtectedRoute>
+            <ProtectedRoute allowedRoles={["VOLUNTEER"]}>
               <Certificates />
             </ProtectedRoute>
           }
@@ -115,6 +130,105 @@ export default function AppRoutes() {
               to="/dashboard"
               replace
             />
+          }
+        />
+
+        <Route
+          path="/dashboard/admin/events"
+          element={
+            <ProtectedRoute
+              allowedRoles={["NGO_ADMIN"]}
+            >
+              <AdminEvents />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/dashboard/admin/events/create"
+          element={
+            <ProtectedRoute
+              allowedRoles={["NGO_ADMIN"]}
+            >
+              <CreateEvent />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/dashboard/admin/verification"
+          element={
+            <ProtectedRoute
+              allowedRoles={["NGO_ADMIN"]}
+            >
+              <NGOVerification />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/dashboard/admin/registrations"
+          element={
+            <ProtectedRoute
+              allowedRoles={["NGO_ADMIN"]}
+            >
+              <AdminRegistrations />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/dashboard/admin/donations"
+          element={
+            <ProtectedRoute
+              allowedRoles={["NGO_ADMIN"]}
+            >
+              <AdminDonations />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/dashboard/admin/coordinators"
+          element={
+            <ProtectedRoute
+              allowedRoles={["NGO_ADMIN"]}
+            >
+              <AssignCoordinator />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/dashboard/coordinator/events"
+          element={
+            <ProtectedRoute
+              allowedRoles={["COORDINATOR"]}
+            >
+              <CoordinatorEvents />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/dashboard/coordinator/teams"
+          element={
+            <ProtectedRoute
+              allowedRoles={["COORDINATOR"]}
+            >
+              <CoordinatorTeams />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/dashboard/coordinator/attendance"
+          element={
+            <ProtectedRoute
+              allowedRoles={["COORDINATOR"]}
+            >
+              <CoordinatorAttendance />
+            </ProtectedRoute>
           }
         />
 

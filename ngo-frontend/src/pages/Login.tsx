@@ -4,6 +4,8 @@ import {
 } from "react";
 
 import {
+  Link,
+  useLocation,
   useNavigate,
   Navigate,
 } from "react-router-dom";
@@ -12,6 +14,11 @@ import { useAuth } from "../context/useAuth";
 
 export default function Login() {
   const navigate = useNavigate();
+
+  const location = useLocation();
+
+  const accountCreated =
+    location.state?.accountCreated === true;
 
   const {
     login,
@@ -113,10 +120,31 @@ export default function Login() {
           </p>
         </div>
 
+        {accountCreated && (
+          <div className="mb-5 rounded-lg bg-green-50 px-4 py-3 text-sm text-green-700">
+            Account created successfully.
+            You can now log in.
+          </div>
+        )}
+
         <form
           onSubmit={handleSubmit}
           className="space-y-5"
         >
+          <div className="mt-6 border-t pt-6 text-center">
+
+            <p className="text-sm text-gray-600">
+              Don't have an account?
+            </p>
+
+            <Link
+              to="/register"
+              className="mt-3 inline-block w-full rounded-lg border border-blue-600 py-3 font-semibold text-blue-600 transition hover:bg-blue-50"
+            >
+              Create Account
+            </Link>
+
+          </div>
 
           <div>
             <label

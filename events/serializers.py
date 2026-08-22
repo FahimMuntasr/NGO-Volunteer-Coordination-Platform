@@ -13,6 +13,12 @@ class EventSerializer(serializers.ModelSerializer):
         many=True,
         read_only=True,
     )
+    
+    coordinator_username = serializers.CharField(
+        source="coordinator.username",
+        read_only=True,
+        allow_null=True,
+    )
 
     class Meta:
         model = Event
@@ -29,6 +35,8 @@ class EventSerializer(serializers.ModelSerializer):
             "volunteer_capacity",
             "required_skills",
             "status",
+            "coordinator",
+            "coordinator_username",
         ]
 
 class EventCreateSerializer(serializers.ModelSerializer):

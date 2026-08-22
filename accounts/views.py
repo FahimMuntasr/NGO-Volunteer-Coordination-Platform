@@ -99,6 +99,34 @@ class CurrentUserView(APIView):
             status=status.HTTP_200_OK,
         )
         
+class CoordinatorListView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        if request.user.role != User.Role.NGO_ADMIN:
+            return Response(
+                {
+                    "detail": (
+                        "Only NGO administrators "
+                        "can view coordinators."
+                    )
+                },
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        coordinators = User.objects.filter(
+            role=User.Role.COORDINATOR,
+            is_active=True,
+        ).order_by("username")
+
+        return Response(
+            UserSerializer(
+                coordinators,
+                many=True,
+            ).data,
+            status=status.HTTP_200_OK,
+        )
+        
 class PasswordResetRequestView(APIView):
     permission_classes = [AllowAny]
 

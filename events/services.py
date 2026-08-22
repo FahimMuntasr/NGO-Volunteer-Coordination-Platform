@@ -77,13 +77,15 @@ class ProxyEventService(AbstractEventService):
         # Retrieve the available events from the real service.
         base_queryset = self._real_service.get_events(user)
 
-        # Apply role-based visibility before returning the events.
-        if user.role in (
-            User.Role.NGO_ADMIN,
-            User.Role.COORDINATOR,
-        ):
-            # Administrators and coordinators can view all event statuses.
-            return base_queryset
+        if user.role == User.Role.NGO_ADMIN:
+            return base_queryset.filter(
+                ngo__administrator=user
+            )
+
+        if user.role == User.Role.COORDINATOR:
+            return base_queryset.filter(
+                coordinator=user
+            )
 
         if user.role == User.Role.DONOR:
             # OPEN events are available for donor viewing.

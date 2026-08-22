@@ -12,6 +12,8 @@ export interface User {
   last_name: string;
   phone: string;
   role: UserRole;
+  managed_ngo_id: number | null;
+  managed_ngo_name: string | null;
 }
 
 export interface LoginResponse {
