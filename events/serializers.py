@@ -3,13 +3,6 @@ from rest_framework import serializers
 from .models import Event, Registration, Team, TeamMembership
 from volunteering.models import Skill
 
-from .builders import (
-    DraftEventBuilder,
-    EventDirector,
-    PublishedEventBuilder,
-)
-
-
 class EventSerializer(serializers.ModelSerializer):
     ngo_name = serializers.CharField(
         source="ngo.name",
@@ -101,51 +94,6 @@ class EventCreateSerializer(serializers.ModelSerializer):
 
         return attrs
         
-    def validate_status(self, value):
-        allowed_statuses = [
-            Event.Status.DRAFT,
-            Event.Status.OPEN,
-        ]
-
-        if value not in allowed_statuses:
-            raise serializers.ValidationError(
-                "New events can only be created as DRAFT or OPEN."
-            )
-
-        return value
-
-    def create(self, validated_data):
-        required_skills = validated_data.pop("required_skills", [])
-        requested_status = validated_data.pop(
-            "status",
-            Event.Status.DRAFT,
-        )
-
-        if requested_status == Event.Status.OPEN:
-            builder = PublishedEventBuilder()
-        else:
-            builder = DraftEventBuilder()
-
-        director = EventDirector()
-
-        return director.build_event(
-            builder,
-            ngo=validated_data["ngo"],
-            created_by=validated_data["created_by"],
-            title=validated_data["title"],
-            description=validated_data["description"],
-            location=validated_data["location"],
-            start_date=validated_data["start_date"],
-            end_date=validated_data["end_date"],
-            registration_deadline=validated_data[
-                "registration_deadline"
-            ],
-            volunteer_capacity=validated_data[
-                "volunteer_capacity"
-            ],
-            required_skills=required_skills,
-        )
-
 class EventUpdateSerializer(serializers.ModelSerializer):
     required_skill_ids = serializers.PrimaryKeyRelatedField(
         queryset=Skill.objects.all(),

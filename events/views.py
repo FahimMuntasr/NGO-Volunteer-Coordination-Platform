@@ -133,8 +133,6 @@ class EventCreateView(CreateAPIView):
             headers=headers,
         )
 
-        if event.status == Event.Status.OPEN:
-            notification_subject.notify(EventPublished(event))
 
 class EventUpdateView(UpdateAPIView):
     queryset = Event.objects.select_related("ngo")
@@ -210,10 +208,6 @@ class EventRegistrationView(APIView):
         registration = registration_service.register(
         volunteer_profile,
         event,
-        )
-
-        notification_subject.notify(
-            RegistrationCreated(registration)
         )
 
         notification_subject.notify(
@@ -643,7 +637,13 @@ class EventOpenView(APIView):
             )
 
         event.status = Event.Status.OPEN
-        event.save(update_fields=["status"])
+        event.save(
+            update_fields=["status"]
+        )
+
+        notification_subject.notify(
+            EventPublished(event)
+        )
 
         return Response(
             {
