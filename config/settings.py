@@ -72,6 +72,7 @@ INSTALLED_APPS = [
     "volunteering",
     "donations",
     "certificates",
+    "notifications"
 ]
 
 MIDDLEWARE = [
