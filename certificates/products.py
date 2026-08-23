@@ -138,7 +138,6 @@ class AttendanceReportGenerator(DocumentGenerator):
 
             y_position -= 25
 
-            # Start another PDF page if necessary
             if y_position < 50:
                 pdf.showPage()
                 pdf.setFont("Helvetica", 12)
