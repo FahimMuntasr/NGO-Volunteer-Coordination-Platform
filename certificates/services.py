@@ -6,10 +6,7 @@ from .models import Certificate
 
 
 class CertificateService:
-    """
-    Handles creation and storage of participation certificates.
-    """
-
+    
     @staticmethod
     def generate_certificate(registration):
         certificate, created = Certificate.objects.get_or_create(
@@ -17,14 +14,14 @@ class CertificateService:
             event=registration.event,
         )
 
-        # Do not generate the PDF again if one already exists.
+        # Prevents duplicate certificate generation
         if certificate.file:
             return certificate
 
         # Concrete Creator
         creator = ParticipationCertificateCreator()
 
-        # The client asks the creator to create the document.
+        # The client asks the creator to create the document
         pdf_file = creator.create_document(
             {
                 "volunteer": registration.volunteer,
@@ -51,9 +48,6 @@ class CertificateService:
 
 
 class AttendanceReportService:
-    """
-    Generates an attendance report for an event.
-    """
 
     @staticmethod
     def generate_report(event):
