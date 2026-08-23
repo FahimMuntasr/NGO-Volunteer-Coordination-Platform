@@ -12,7 +12,6 @@ from .models import Event, Registration
 class EventCompletionFacade:
     """
     Facade for completing an event.
-
     It coordinates all the steps required when an event
     is completed so the API view only needs to call
     one method.
