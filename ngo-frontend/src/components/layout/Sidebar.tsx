@@ -39,6 +39,10 @@ const navigationByRole: Record<UserRole, NavItem[]> = {
       label: "Profile",
       path: "/dashboard/profile",
     },
+    {
+      label: "Notifications",
+      path: "/dashboard/notifications",
+    },
   ],
 
   NGO_ADMIN: [
@@ -60,12 +64,20 @@ const navigationByRole: Record<UserRole, NavItem[]> = {
       path: "/dashboard/admin/registrations",
     },
     {
+      label: "Volunteer Rankings",
+      path: "/dashboard/admin/rankings",
+    },
+    {
       label: "Donations",
       path: "/dashboard/admin/donations",
     },
     {
       label: "NGO Verification",
       path: "/dashboard/admin/verification",
+    },
+    {
+      label: "Notifications",
+      path: "/dashboard/notifications",
     },
   ],
 
@@ -87,6 +99,10 @@ const navigationByRole: Record<UserRole, NavItem[]> = {
       label: "Attendance",
       path: "/dashboard/coordinator/attendance",
     },
+    {
+      label: "Notifications",
+      path: "/dashboard/notifications",
+    },
   ],
 
   DONOR: [
@@ -106,6 +122,10 @@ const navigationByRole: Record<UserRole, NavItem[]> = {
     {
       label: "NGOs",
       path: "/dashboard/donor/ngos",
+    },
+    {
+      label: "Notifications",
+      path: "/dashboard/notifications",
     },
   ],
 };

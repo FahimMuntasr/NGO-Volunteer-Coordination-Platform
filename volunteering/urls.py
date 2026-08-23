@@ -5,6 +5,7 @@ from .views import (
     MyVolunteerProfileView,
     SkillListView,
     VolunteerHistoryView,
+    VolunteerRankingView,
 )
 
 urlpatterns = [
@@ -30,5 +31,11 @@ urlpatterns = [
         "me/registrations/",
         MyRegistrationsView.as_view(),
         name="volunteer-registrations",
+    ),
+    
+    path(
+        "rankings/",
+        VolunteerRankingView.as_view(),
+        name="volunteer-rankings",
     ),
 ]

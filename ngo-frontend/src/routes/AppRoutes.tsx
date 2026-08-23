@@ -25,6 +25,8 @@ import CoordinatorEvents from "../pages/coordinator/CoordinatorEvents";
 import CoordinatorTeams from "../pages/coordinator/CoordinatorTeams";
 import CoordinatorAttendance from "../pages/coordinator/CoordinatorAttendance";
 import Register from "../pages/Register";
+import Notifications from "../pages/Notifications";
+import VolunteerRankings from "../pages/admin/VolunteerRankings";
 
 import ProtectedRoute from "./ProtectedRoute";
 
@@ -61,6 +63,15 @@ export default function AppRoutes() {
           element={
             <ProtectedRoute>
               <Dashboard />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/dashboard/notifications"
+          element={
+            <ProtectedRoute>
+              <Notifications />
             </ProtectedRoute>
           }
         />
@@ -200,6 +211,17 @@ export default function AppRoutes() {
         />
 
         <Route
+          path="/dashboard/admin/rankings"
+          element={
+            <ProtectedRoute
+              allowedRoles={["NGO_ADMIN"]}
+            >
+              <VolunteerRankings />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
           path="/dashboard/coordinator/events"
           element={
             <ProtectedRoute
@@ -231,6 +253,8 @@ export default function AppRoutes() {
             </ProtectedRoute>
           }
         />
+
+        
 
         {/* =========================
             404

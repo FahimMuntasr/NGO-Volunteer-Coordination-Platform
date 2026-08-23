@@ -11,6 +11,18 @@ from .serializers import (
     VolunteerHistorySerializer,
     VolunteerProfileSerializer,
 )
+from rest_framework.exceptions import ValidationError
+
+from .ranking import (
+    Volunteer,
+    VolunteerRanker,
+    SkillRanking,
+    ExperienceRanking,
+    HoursRanking,
+    BeginnerRanking,
+    ConsistencyRanking,
+    VolunteerRating,
+)
 from events.models import Registration
 
 
@@ -181,4 +193,75 @@ class MyRegistrationsView(APIView):
         return Response(
             serializer.data,
             status=status.HTTP_200_OK,
+        )
+        
+class VolunteerRankingView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        if request.user.role != User.Role.NGO_ADMIN:
+            return Response(
+                {
+                    "detail": (
+                        "Only NGO administrators "
+                        "can view volunteer rankings."
+                    )
+                },
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        strategy_name = request.query_params.get(
+            "strategy",
+            "overall",
+        )
+
+        strategies = {
+            "skill": SkillRanking(),
+            "experience": ExperienceRanking(),
+            "hours": HoursRanking(),
+            "beginner": BeginnerRanking(),
+            "consistency": ConsistencyRanking(),
+            "overall": VolunteerRating(),
+        }
+
+        strategy = strategies.get(strategy_name)
+
+        if strategy is None:
+            raise ValidationError(
+                {
+                    "strategy": (
+                        "Invalid ranking strategy."
+                    )
+                }
+            )
+
+        profiles = (
+            VolunteerProfile.objects
+            .select_related("user")
+            .prefetch_related("skills")
+        )
+
+        volunteers = []
+
+        for profile in profiles:
+            volunteers.append(
+                Volunteer(
+                    name=(
+                        profile.user.get_full_name()
+                        or profile.user.username
+                    ),
+                    skills=profile.skills.count(),
+                    completed_events=profile.completed_events,
+                    total_hours=float(profile.total_hours),
+                )
+            )
+
+        ranker = VolunteerRanker()
+        ranker.set_strategy(strategy)
+
+        return Response(
+            {
+                "strategy": strategy_name,
+                "rankings": ranker.get_ranking(volunteers),
+            }
         )
