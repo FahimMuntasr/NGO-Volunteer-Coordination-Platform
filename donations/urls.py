@@ -1,6 +1,7 @@
 from django.urls import path
 
 from .views import (
+    DonationAcknowledgementView,
     DonationAllocationUpdateView,
     DonationCreateView,
     DonorDonationListView,
@@ -27,5 +28,10 @@ urlpatterns = [
         "<int:donation_id>/allocation/",
         DonationAllocationUpdateView.as_view(),
         name="donation-allocation-update",
+    ),
+    path(
+        "<int:donation_id>/acknowledgement/",
+        DonationAcknowledgementView.as_view(),
+        name="donation-acknowledgement",
     ),
 ]
