@@ -1,204 +1,280 @@
 import {
-    useEffect,
-    useState,
-  } from "react";
-  
-  import DashboardLayout from "../../layouts/DashboardLayout";
-  
-  import { getEvents } from "../../api/events";
-  
-  import {
-    assignCoordinator,
-    getCoordinators,
-    type CoordinatorOption,
-  } from "../../api/admin";
-  
-  import type {
-    Event,
-  } from "../../types/event";
-  
-  export default function AssignCoordinator() {
-    const [events, setEvents] =
-      useState<Event[]>([]);
-  
-    const [coordinators, setCoordinators] =
-      useState<CoordinatorOption[]>([]);
-  
-    const [selections, setSelections] =
-      useState<Record<number, number>>({});
-  
-    const [loading, setLoading] =
-      useState(true);
-  
-    const [error, setError] =
-      useState("");
-  
-    const [success, setSuccess] =
-      useState("");
-  
-    const [workingId, setWorkingId] =
-      useState<number | null>(null);
-  
-    useEffect(() => {
-      let cancelled = false;
-  
-      Promise.all([
-        getEvents(),
-        getCoordinators(),
-      ])
-        .then(
-          ([
-            eventsData,
-            coordinatorsData,
-          ]) => {
-            if (cancelled) {
-              return;
-            }
-  
-            setEvents(eventsData);
-            setCoordinators(
-              coordinatorsData,
-            );
-          },
-        )
-        .catch((err) => {
-          if (cancelled) {
-            return;
-          }
-  
-          console.error(err);
-  
-          setError(
-            "Unable to load coordinator data.",
+  useEffect,
+  useState,
+} from "react";
+
+import DashboardLayout from "../../layouts/DashboardLayout";
+
+import {
+  getEvents,
+} from "../../api/events";
+
+import {
+  assignCoordinator,
+  getCoordinators,
+  type CoordinatorOption,
+} from "../../api/admin";
+
+import type {
+  Event,
+} from "../../types/event";
+
+
+export default function AssignCoordinator() {
+  const [
+    events,
+    setEvents,
+  ] =
+    useState<Event[]>([]);
+
+  const [
+    coordinators,
+    setCoordinators,
+  ] =
+    useState<
+      CoordinatorOption[]
+    >([]);
+
+  const [
+    selections,
+    setSelections,
+  ] =
+    useState<
+      Record<
+        number,
+        number
+      >
+    >({});
+
+  const [
+    loading,
+    setLoading,
+  ] =
+    useState(true);
+
+  const [
+    error,
+    setError,
+  ] =
+    useState("");
+
+  const [
+    success,
+    setSuccess,
+  ] =
+    useState("");
+
+  const [
+    workingId,
+    setWorkingId,
+  ] =
+    useState<number | null>(
+      null,
+    );
+
+
+  useEffect(() => {
+    Promise.all([
+      getEvents(),
+      getCoordinators(),
+    ])
+      .then(
+        ([
+          eventData,
+          coordinatorData,
+        ]) => {
+          setEvents(
+            eventData,
           );
-        })
-        .finally(() => {
-          if (!cancelled) {
-            setLoading(false);
-          }
-        });
-  
-      return () => {
-        cancelled = true;
-      };
-    }, []);
-  
-    async function handleAssign(
-      eventId: number,
-    ) {
-      const coordinatorId =
-        selections[eventId];
-  
-      if (!coordinatorId) {
-        setError(
-          "Please select a coordinator.",
-        );
-        return;
-      }
-  
-      try {
-        setWorkingId(eventId);
-        setError("");
-        setSuccess("");
-  
-        await assignCoordinator(
-          eventId,
-          coordinatorId,
-        );
-  
-        const updatedEvents =
-          await getEvents();
-  
-        setEvents(updatedEvents);
-  
-        setSuccess(
-          "Coordinator assigned successfully.",
-        );
-      } catch (err) {
+
+          setCoordinators(
+            coordinatorData,
+          );
+        },
+      )
+      .catch((err) => {
         console.error(err);
-  
+
         setError(
-          "Unable to assign coordinator.",
+          "Unable to load coordinator data.",
         );
-      } finally {
-        setWorkingId(null);
-      }
+      })
+      .finally(() =>
+        setLoading(
+          false,
+        ),
+      );
+  }, []);
+
+
+  async function handleAssign(
+    eventId: number,
+  ) {
+    const coordinatorId =
+      selections[
+        eventId
+      ];
+
+    if (
+      !coordinatorId
+    ) {
+      setError(
+        "Please select a coordinator.",
+      );
+
+      return;
     }
-  
-    return (
-      <DashboardLayout>
-        <div className="space-y-6">
-  
-          <div>
-            <h1 className="text-3xl font-bold">
-              Assign Coordinators
-            </h1>
-  
-            <p className="mt-1 text-gray-600">
-              Assign coordinators to your
-              NGO events.
-            </p>
+
+    try {
+      setWorkingId(
+        eventId,
+      );
+
+      setError("");
+      setSuccess("");
+
+      await assignCoordinator(
+        eventId,
+        coordinatorId,
+      );
+
+      setEvents(
+        await getEvents(),
+      );
+
+      setSuccess(
+        "Coordinator assigned successfully.",
+      );
+
+    } catch (err) {
+      console.error(err);
+
+      setError(
+        "Unable to assign coordinator.",
+      );
+
+    } finally {
+      setWorkingId(
+        null,
+      );
+    }
+  }
+
+
+  return (
+    <DashboardLayout>
+
+      <div className="space-y-6">
+
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-blue-600">
+            Event Staffing
+          </p>
+
+          <h1 className="mt-1 text-3xl font-bold text-slate-900">
+            Assign Coordinators
+          </h1>
+
+          <p className="mt-1 text-slate-500">
+            Assign registered coordinators
+            to manage your NGO's events.
+          </p>
+        </div>
+
+
+        {error && (
+          <div className="rounded-2xl bg-red-100/60 p-4 text-red-700">
+            {error}
           </div>
-  
-          {error && (
-            <div className="rounded-lg bg-red-50 p-4 text-red-700">
-              {error}
-            </div>
-          )}
-  
-          {success && (
-            <div className="rounded-lg bg-green-50 p-4 text-green-700">
-              {success}
-            </div>
-          )}
-  
-          {loading ? (
-            <p>Loading...</p>
-          ) : (
-            <div className="space-y-4">
-  
-              {events.map((event) => (
-                <div
-                  key={event.id}
-                  className="rounded-xl bg-white p-6 shadow"
+        )}
+
+
+        {success && (
+          <div className="rounded-2xl bg-emerald-100/60 p-4 text-emerald-700">
+            ✓ {success}
+          </div>
+        )}
+
+
+        {loading ? (
+
+          <div className="rounded-2xl bg-[#f4f7fa] p-8 text-slate-500">
+            Loading...
+          </div>
+
+        ) : events.length ===
+          0 ? (
+
+          <div className="rounded-2xl bg-[#f4f7fa] p-8 text-center text-slate-500">
+            No events available.
+          </div>
+
+        ) : (
+
+          <div className="space-y-4">
+
+            {events.map(
+              (event) => (
+
+                <article
+                  key={
+                    event.id
+                  }
+                  className="rounded-2xl border border-slate-300/60 bg-[#f4f7fa] p-6"
                 >
-                  <h2 className="text-xl font-semibold">
-                    {event.title}
+
+                  <h2 className="text-xl font-bold text-slate-900">
+                    {
+                      event.title
+                    }
                   </h2>
-  
-                  <p className="mt-1 text-gray-500">
+
+                  <p className="mt-2 text-sm text-slate-500">
                     Current coordinator:{" "}
-                    {event.coordinator_username ??
-                      "None"}
+
+                    <span className="font-semibold text-slate-700">
+                      {event.coordinator_username ??
+                        "None"}
+                    </span>
                   </p>
-  
-                  <div className="mt-4 flex flex-col gap-3 md:flex-row">
-  
+
+
+                  <div className="mt-5 flex flex-col gap-3 md:flex-row">
+
                     <select
                       value={
                         selections[
                           event.id
                         ] ?? ""
                       }
-                      onChange={(e) =>
+                      onChange={(
+                        e,
+                      ) =>
                         setSelections(
-                          (current) => ({
+                          (
+                            current,
+                          ) => ({
                             ...current,
+
                             [event.id]:
                               Number(
-                                e.target.value,
+                                e
+                                  .target
+                                  .value,
                               ),
                           }),
                         )
                       }
-                      className="flex-1 rounded-lg border p-3"
+                      className="flex-1 rounded-xl border border-slate-300 bg-[#eef3f7] p-3"
                     >
                       <option value="">
-                        Select coordinator
+                        Select Coordinator
                       </option>
-  
+
                       {coordinators.map(
-                        (coordinator) => (
+                        (
+                          coordinator,
+                        ) => (
                           <option
                             key={
                               coordinator.id
@@ -213,32 +289,41 @@ import {
                           </option>
                         ),
                       )}
-  
                     </select>
-  
+
+
                     <button
                       type="button"
                       disabled={
-                        workingId === event.id
+                        workingId ===
+                        event.id
                       }
                       onClick={() =>
                         handleAssign(
                           event.id,
                         )
                       }
-                      className="rounded-lg bg-blue-600 px-5 py-3 text-white"
+                      className="rounded-xl bg-blue-600 px-6 py-3 font-semibold text-white disabled:opacity-50"
                     >
-                      Assign
+                      {workingId ===
+                      event.id
+                        ? "Assigning..."
+                        : "Assign"}
                     </button>
-  
+
                   </div>
-                </div>
-              ))}
-  
-            </div>
-          )}
-  
-        </div>
-      </DashboardLayout>
-    );
-  }
+
+                </article>
+
+              ),
+            )}
+
+          </div>
+
+        )}
+
+      </div>
+
+    </DashboardLayout>
+  );
+}

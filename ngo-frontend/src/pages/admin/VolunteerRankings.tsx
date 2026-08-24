@@ -1,4 +1,7 @@
-import { useEffect, useState } from "react";
+import {
+  useEffect,
+  useState,
+} from "react";
 
 import DashboardLayout from "../../layouts/DashboardLayout";
 
@@ -8,116 +11,160 @@ import {
   type RankingStrategy,
 } from "../../api/rankings";
 
-const strategyDescriptions: Record<
+
+const strategyDescriptions:
+Record<
   RankingStrategy,
   string
 > = {
   overall:
     "Balances completed events, volunteer hours, and skills.",
+
   skill:
     "Prioritizes volunteers with more registered skills.",
+
   experience:
     "Prioritizes volunteers with more completed events.",
+
   hours:
     "Rewards volunteers with the highest contribution hours.",
+
   beginner:
     "Gives additional priority to newer volunteers.",
+
   consistency:
     "Rewards volunteers who consistently contribute across events.",
 };
 
+
+function rankDisplay(
+  position: number,
+) {
+  if (
+    position === 1
+  ) {
+    return "🥇";
+  }
+
+  if (
+    position === 2
+  ) {
+    return "🥈";
+  }
+
+  if (
+    position === 3
+  ) {
+    return "🥉";
+  }
+
+  return `#${position}`;
+}
+
+
 export default function VolunteerRankings() {
-  const [strategy, setStrategy] =
-    useState<RankingStrategy>("overall");
+  const [
+    strategy,
+    setStrategy,
+  ] =
+    useState<RankingStrategy>(
+      "overall",
+    );
 
-  const [rankings, setRankings] =
-    useState<RankedVolunteer[]>([]);
+  const [
+    rankings,
+    setRankings,
+  ] =
+    useState<
+      RankedVolunteer[]
+    >([]);
 
-  const [loading, setLoading] =
+  const [
+    loading,
+    setLoading,
+  ] =
     useState(true);
 
-  const [error, setError] =
+  const [
+    error,
+    setError,
+  ] =
     useState("");
 
+
   useEffect(() => {
-    async function loadRankings() {
+    async function load() {
       try {
         setLoading(true);
         setError("");
 
-        const data =
+        setRankings(
           await getVolunteerRankings(
             strategy,
-          );
+          ),
+        );
 
-        setRankings(data);
       } catch {
         setError(
           "Failed to load volunteer rankings.",
         );
+
       } finally {
         setLoading(false);
       }
     }
 
-    loadRankings();
-  }, [strategy]);
+    load();
 
-  function getRankDisplay(
-    position: number,
-  ) {
-    if (position === 1) {
-      return "🥇";
-    }
+  }, [
+    strategy,
+  ]);
 
-    if (position === 2) {
-      return "🥈";
-    }
-
-    if (position === 3) {
-      return "🥉";
-    }
-
-    return `#${position}`;
-  }
 
   return (
     <DashboardLayout>
+
       <div className="space-y-6">
 
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">
+          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-blue-600">
+            Strategy Pattern
+          </p>
+
+          <h1 className="mt-1 text-3xl font-bold text-slate-900">
             Volunteer Rankings
           </h1>
 
-          <p className="mt-1 text-gray-600">
-            Compare volunteers using different
-            ranking strategies.
+          <p className="mt-1 text-slate-500">
+            Compare volunteers using
+            different ranking strategies.
           </p>
         </div>
 
-        <div className="rounded-xl bg-white p-6 shadow">
 
-          <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+        <section className="rounded-2xl border border-slate-300/60 bg-[#f4f7fa] p-6">
+
+          <div className="grid gap-5 lg:grid-cols-[0.7fr_1.3fr]">
 
             <div>
-              <label
-                htmlFor="ranking-strategy"
-                className="block text-sm font-medium text-gray-700"
-              >
+              <label className="text-sm font-semibold text-slate-700">
                 Ranking Strategy
               </label>
 
               <select
-                id="ranking-strategy"
-                value={strategy}
-                onChange={(event) =>
+                value={
+                  strategy
+                }
+                onChange={(
+                  event,
+                ) =>
                   setStrategy(
-                    event.target
+                    event
+                      .target
                       .value as RankingStrategy,
                   )
                 }
-                className="mt-2 min-w-64 rounded-lg border border-gray-300 bg-white px-4 py-3 text-gray-900 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                className="mt-2 w-full rounded-xl border border-slate-300 bg-[#eef3f7] p-3"
               >
                 <option value="overall">
                   Overall Rating
@@ -145,7 +192,8 @@ export default function VolunteerRankings() {
               </select>
             </div>
 
-            <div className="rounded-lg bg-blue-50 px-4 py-3 text-sm text-blue-800 md:max-w-md">
+
+            <div className="rounded-xl bg-blue-100/60 p-4 text-sm leading-6 text-blue-800">
               {
                 strategyDescriptions[
                   strategy
@@ -155,190 +203,233 @@ export default function VolunteerRankings() {
 
           </div>
 
-        </div>
+        </section>
+
 
         {error && (
-          <div className="rounded-lg bg-red-50 p-4 text-red-700">
+          <div className="rounded-2xl bg-red-100/60 p-4 text-red-700">
             {error}
           </div>
         )}
 
+
         {loading ? (
-          <div className="rounded-xl bg-white p-8 shadow">
-            <p className="text-gray-500">
-              Loading rankings...
-            </p>
-          </div>
-        ) : rankings.length === 0 ? (
-          <div className="rounded-xl bg-white p-10 text-center shadow">
-            <div className="text-4xl">
-              🏆
-            </div>
 
-            <h2 className="mt-3 text-xl font-semibold">
-              No volunteers available
-            </h2>
-
-            <p className="mt-2 text-gray-500">
-              Volunteer rankings will appear
-              once profiles exist.
-            </p>
+          <div className="rounded-2xl bg-[#f4f7fa] p-8 text-slate-500">
+            Loading rankings...
           </div>
+
+        ) : rankings.length ===
+          0 ? (
+
+          <div className="rounded-2xl bg-[#f4f7fa] p-10 text-center text-slate-500">
+            No volunteers available.
+          </div>
+
         ) : (
+
           <>
+
+
             <div className="grid gap-4 md:grid-cols-3">
 
               {rankings
-                .slice(0, 3)
-                .map((volunteer) => (
-                  <div
-                    key={`${volunteer.position}-${volunteer.name}`}
-                    className="rounded-xl bg-white p-6 text-center shadow"
-                  >
-                    <div className="text-4xl">
-                      {getRankDisplay(
-                        volunteer.position,
-                      )}
-                    </div>
+                .slice(
+                  0,
+                  3,
+                )
+                .map(
+                  (
+                    volunteer,
+                  ) => (
 
-                    <h2 className="mt-3 text-lg font-semibold text-gray-900">
-                      {volunteer.name}
-                    </h2>
+                    <article
+                      key={`${volunteer.position}-${volunteer.name}`}
+                      className="rounded-2xl border border-slate-300/60 bg-[#f4f7fa] p-6 text-center"
+                    >
 
-                    <p className="mt-2 text-3xl font-bold text-blue-600">
-                      {volunteer.score}
-                    </p>
-
-                    <p className="text-sm text-gray-500">
-                      Ranking Score
-                    </p>
-
-                    <div className="mt-5 grid grid-cols-3 gap-2 border-t pt-4 text-sm">
-
-                      <div>
-                        <p className="font-semibold">
-                          {volunteer.skills}
-                        </p>
-                        <p className="text-gray-500">
-                          Skills
-                        </p>
+                      <div className="text-4xl">
+                        {rankDisplay(
+                          volunteer.position,
+                        )}
                       </div>
 
-                      <div>
-                        <p className="font-semibold">
-                          {
-                            volunteer.completed_events
-                          }
-                        </p>
-                        <p className="text-gray-500">
-                          Events
-                        </p>
+                      <h2 className="mt-3 text-lg font-bold text-slate-900">
+                        {
+                          volunteer.name
+                        }
+                      </h2>
+
+                      <p className="mt-2 text-3xl font-bold text-blue-600">
+                        {
+                          volunteer.score
+                        }
+                      </p>
+
+                      <p className="text-xs text-slate-500">
+                        Ranking Score
+                      </p>
+
+
+                      <div className="mt-5 grid grid-cols-3 gap-2 border-t border-slate-300/60 pt-4 text-sm">
+
+                        <div>
+                          <p className="font-bold">
+                            {
+                              volunteer.skills
+                            }
+                          </p>
+
+                          <p className="text-xs text-slate-500">
+                            Skills
+                          </p>
+                        </div>
+
+                        <div>
+                          <p className="font-bold">
+                            {
+                              volunteer.completed_events
+                            }
+                          </p>
+
+                          <p className="text-xs text-slate-500">
+                            Events
+                          </p>
+                        </div>
+
+                        <div>
+                          <p className="font-bold">
+                            {
+                              volunteer.total_hours
+                            }
+                          </p>
+
+                          <p className="text-xs text-slate-500">
+                            Hours
+                          </p>
+                        </div>
+
                       </div>
 
-                      <div>
-                        <p className="font-semibold">
-                          {
-                            volunteer.total_hours
-                          }
-                        </p>
-                        <p className="text-gray-500">
-                          Hours
-                        </p>
-                      </div>
+                    </article>
 
-                    </div>
-                  </div>
-                ))}
+                  ),
+                )}
 
             </div>
 
-            <div className="overflow-hidden rounded-xl bg-white shadow">
 
-              <div className="border-b px-6 py-4">
-                <h2 className="text-lg font-semibold">
+            <section className="overflow-hidden rounded-2xl border border-slate-300/60 bg-[#f4f7fa]">
+
+              <div className="border-b border-slate-300/60 p-5">
+                <h2 className="text-xl font-bold text-slate-900">
                   Full Ranking
                 </h2>
               </div>
 
+
               <div className="overflow-x-auto">
 
-                <table className="w-full text-left">
+                <table className="w-full text-left text-sm">
 
-                  <thead className="bg-gray-50 text-sm text-gray-600">
+                  <thead className="bg-[#e3eaf1] text-slate-600">
                     <tr>
-                      <th className="px-6 py-4">
+                      <th className="px-5 py-4">
                         Rank
                       </th>
-                      <th className="px-6 py-4">
+
+                      <th className="px-5 py-4">
                         Volunteer
                       </th>
-                      <th className="px-6 py-4">
+
+                      <th className="px-5 py-4">
                         Skills
                       </th>
-                      <th className="px-6 py-4">
+
+                      <th className="px-5 py-4">
                         Events
                       </th>
-                      <th className="px-6 py-4">
+
+                      <th className="px-5 py-4">
                         Hours
                       </th>
-                      <th className="px-6 py-4">
+
+                      <th className="px-5 py-4">
                         Score
                       </th>
                     </tr>
                   </thead>
 
-                  <tbody className="divide-y">
+
+                  <tbody className="divide-y divide-slate-300/50">
 
                     {rankings.map(
-                      (volunteer) => (
+                      (
+                        volunteer,
+                      ) => (
+
                         <tr
                           key={`${volunteer.position}-${volunteer.name}`}
-                          className="transition hover:bg-gray-50"
+                          className="hover:bg-[#eaf0f5]"
                         >
-                          <td className="px-6 py-4 text-lg font-semibold">
-                            {getRankDisplay(
+
+                          <td className="px-5 py-4 font-bold">
+                            {rankDisplay(
                               volunteer.position,
                             )}
                           </td>
 
-                          <td className="px-6 py-4 font-medium text-gray-900">
-                            {volunteer.name}
+                          <td className="px-5 py-4 font-semibold text-slate-800">
+                            {
+                              volunteer.name
+                            }
                           </td>
 
-                          <td className="px-6 py-4">
-                            {volunteer.skills}
+                          <td className="px-5 py-4">
+                            {
+                              volunteer.skills
+                            }
                           </td>
 
-                          <td className="px-6 py-4">
+                          <td className="px-5 py-4">
                             {
                               volunteer.completed_events
                             }
                           </td>
 
-                          <td className="px-6 py-4">
+                          <td className="px-5 py-4">
                             {
                               volunteer.total_hours
                             }
                           </td>
 
-                          <td className="px-6 py-4">
-                            <span className="rounded-full bg-blue-100 px-3 py-1 font-semibold text-blue-700">
-                              {volunteer.score}
+                          <td className="px-5 py-4">
+                            <span className="rounded-full bg-blue-100 px-3 py-1 font-bold text-blue-700">
+                              {
+                                volunteer.score
+                              }
                             </span>
                           </td>
+
                         </tr>
+
                       ),
                     )}
 
                   </tbody>
+
                 </table>
 
               </div>
-            </div>
+
+            </section>
+
           </>
+
         )}
 
       </div>
+
     </DashboardLayout>
   );
 }

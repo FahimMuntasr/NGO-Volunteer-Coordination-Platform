@@ -1,7 +1,17 @@
-import { useEffect, useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import {
+  useEffect,
+  useState,
+} from "react";
 
-import { verifyCertificate } from "../api/certificates";
+import {
+  Link,
+  useParams,
+} from "react-router-dom";
+
+import {
+  verifyCertificate,
+} from "../api/certificates";
+
 
 type VerificationResult = {
   valid: boolean;
@@ -11,29 +21,62 @@ type VerificationResult = {
   issued_at: string;
 };
 
-function formatDate(date: string) {
-  return new Date(date).toLocaleDateString("en-US", {
-    year: "numeric",
-    month: "long",
-    day: "numeric",
-  });
+
+function formatDate(
+  date: string,
+) {
+  return new Date(
+    date,
+  ).toLocaleDateString(
+    "en-US",
+    {
+      year: "numeric",
+      month: "long",
+      day: "numeric",
+    },
+  );
 }
 
+
 export default function CertificateVerification() {
-  const { verificationCode } = useParams<{
-    verificationCode: string;
-  }>();
+  const {
+    verificationCode,
+  } =
+    useParams<{
+      verificationCode:
+        string;
+    }>();
 
-  const [certificate, setCertificate] =
-    useState<VerificationResult | null>(null);
+  const [
+    certificate,
+    setCertificate,
+  ] =
+    useState<VerificationResult | null>(
+      null,
+    );
 
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
+  const [
+    loading,
+    setLoading,
+  ] =
+    useState(true);
+
+  const [
+    error,
+    setError,
+  ] =
+    useState("");
+
 
   useEffect(() => {
     async function verify() {
-      if (!verificationCode) {
-        setError("No verification code was provided.");
+      if (
+        !verificationCode
+      ) {
+        setError(
+          "No verification code was provided.",
+        );
+
         setLoading(false);
         return;
       }
@@ -43,164 +86,183 @@ export default function CertificateVerification() {
         setError("");
 
         const data =
-          await verifyCertificate(verificationCode);
+          await verifyCertificate(
+            verificationCode,
+          );
 
-        setCertificate(data);
-      } catch (err) {
-        console.error(
-          "Certificate verification failed:",
-          err,
+        setCertificate(
+          data,
         );
 
-        setCertificate(null);
+      } catch (err) {
+        console.error(err);
+
+        setCertificate(
+          null,
+        );
 
         setError(
           "This certificate could not be verified.",
         );
+
       } finally {
         setLoading(false);
       }
     }
 
     verify();
-  }, [verificationCode]);
+
+  }, [
+    verificationCode,
+  ]);
+
 
   return (
-    <div className="min-h-screen bg-gray-100 px-4 py-10">
+    <div className="min-h-screen bg-[#eaf0f5] px-5 py-10">
+
       <div className="mx-auto max-w-2xl">
 
-        {/* Header */}
 
-        <div className="mb-8 text-center">
-          <h1 className="text-3xl font-bold text-gray-900">
-            Certificate Verification
-          </h1>
+        <div className="mb-8 flex items-center justify-center gap-3">
 
-          <p className="mt-2 text-gray-600">
-            Verify the authenticity of a volunteer certificate.
-          </p>
+          <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-gradient-to-br from-blue-600 to-teal-500 font-bold text-white">
+            N
+          </div>
+
+          <div>
+            <p className="font-bold text-slate-900">
+              NGO Volunteer Coordination
+            </p>
+
+            <p className="text-xs text-slate-500">
+              Certificate Verification
+            </p>
+          </div>
+
         </div>
 
-        {/* Loading */}
 
         {loading && (
-          <div className="rounded-xl border bg-white p-10 text-center shadow-sm">
-            <p className="text-gray-600">
-              Verifying certificate...
-            </p>
+          <div className="rounded-2xl border border-slate-300/60 bg-[#f4f7fa] p-10 text-center text-slate-500">
+            Verifying certificate...
           </div>
         )}
 
-        {/* Error */}
 
-        {!loading && error && (
-          <div className="rounded-xl border border-red-300 bg-white p-8 text-center shadow-sm">
+        {!loading &&
+          error && (
 
-            <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-red-100">
-              <span className="text-2xl text-red-600">
-                ✕
-              </span>
+          <div className="rounded-3xl border border-red-200 bg-[#f4f7fa] p-8 text-center shadow-lg">
+
+            <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-red-100 text-2xl font-bold text-red-600">
+              ×
             </div>
 
-            <h2 className="text-xl font-semibold text-gray-900">
-              Certificate Not Found
-            </h2>
+            <h1 className="mt-5 text-2xl font-bold text-slate-900">
+              Certificate Not Verified
+            </h1>
 
-            <p className="mt-2 text-gray-600">
+            <p className="mt-2 text-slate-500">
               {error}
             </p>
 
             <Link
               to="/login"
-              className="mt-6 inline-block rounded-lg bg-blue-600 px-5 py-2.5 font-medium text-white hover:bg-blue-700"
+              className="mt-6 inline-block rounded-xl bg-blue-600 px-5 py-3 font-semibold text-white"
             >
               Go to Login
             </Link>
+
           </div>
+
         )}
 
-        {/* Valid certificate */}
 
         {!loading &&
           !error &&
           certificate && (
-            <div className="overflow-hidden rounded-xl border bg-white shadow-sm">
 
-              {/* Verification banner */}
+          <div className="overflow-hidden rounded-3xl border border-slate-300/60 bg-[#f4f7fa] shadow-lg">
 
-              <div className="bg-green-50 px-6 py-5 text-center">
-                <div className="mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-full bg-green-100">
-                  <span className="text-2xl text-green-600">
-                    ✓
-                  </span>
-                </div>
+            <div className="bg-emerald-100/70 p-7 text-center">
 
-                <h2 className="text-2xl font-bold text-green-700">
-                  Certificate Verified
-                </h2>
+              <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-emerald-200 text-2xl font-bold text-emerald-700">
+                ✓
+              </div>
 
-                <p className="mt-1 text-green-700">
-                  This certificate is valid.
+              <h1 className="mt-4 text-2xl font-bold text-emerald-800">
+                Certificate Verified
+              </h1>
+
+              <p className="mt-1 text-emerald-700">
+                This certificate is
+                authentic.
+              </p>
+
+            </div>
+
+
+            <div className="space-y-4 p-7">
+
+              <div className="rounded-xl bg-[#eaf0f5] p-4">
+                <p className="text-xs font-semibold uppercase text-slate-500">
+                  Volunteer
+                </p>
+
+                <p className="mt-1 text-lg font-bold text-slate-800">
+                  {
+                    certificate.volunteer_name
+                  }
                 </p>
               </div>
 
-              {/* Certificate information */}
 
-              <div className="space-y-5 p-6">
+              <div className="rounded-xl bg-[#eaf0f5] p-4">
+                <p className="text-xs font-semibold uppercase text-slate-500">
+                  Event
+                </p>
 
-                <div>
-                  <p className="text-sm font-medium text-gray-500">
-                    Volunteer
-                  </p>
-
-                  <p className="mt-1 text-lg font-semibold text-gray-900">
-                    {certificate.volunteer_name}
-                  </p>
-                </div>
-
-                <div>
-                  <p className="text-sm font-medium text-gray-500">
-                    Event
-                  </p>
-
-                  <p className="mt-1 text-lg font-semibold text-gray-900">
-                    {certificate.event_title}
-                  </p>
-                </div>
-
-                <div>
-                  <p className="text-sm font-medium text-gray-500">
-                    Issued
-                  </p>
-
-                  <p className="mt-1 text-gray-900">
-                    {formatDate(
-                      certificate.issued_at,
-                    )}
-                  </p>
-                </div>
-
-                <div>
-                  <p className="text-sm font-medium text-gray-500">
-                    Verification Code
-                  </p>
-
-                  <p className="mt-1 break-all rounded-lg bg-gray-100 p-3 font-mono text-sm text-gray-700">
-                    {certificate.verification_code}
-                  </p>
-                </div>
-
+                <p className="mt-1 text-lg font-bold text-slate-800">
+                  {
+                    certificate.event_title
+                  }
+                </p>
               </div>
+
+
+              <div className="rounded-xl bg-[#eaf0f5] p-4">
+                <p className="text-xs font-semibold uppercase text-slate-500">
+                  Issued
+                </p>
+
+                <p className="mt-1 font-semibold text-slate-700">
+                  {formatDate(
+                    certificate.issued_at,
+                  )}
+                </p>
+              </div>
+
+
+              <div className="rounded-xl bg-[#e3eaf1] p-4">
+                <p className="text-xs font-semibold uppercase text-slate-500">
+                  Verification Code
+                </p>
+
+                <p className="mt-2 break-all font-mono text-sm text-slate-700">
+                  {
+                    certificate.verification_code
+                  }
+                </p>
+              </div>
+
             </div>
-          )}
 
-        {/* Footer */}
+          </div>
 
-        <p className="mt-6 text-center text-sm text-gray-500">
-          NGO Volunteer Coordination Platform
-        </p>
+        )}
 
       </div>
+
     </div>
   );
 }

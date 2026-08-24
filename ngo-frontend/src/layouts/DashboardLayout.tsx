@@ -1,25 +1,54 @@
+import {
+  useState,
+  type ReactNode,
+} from "react";
+
 import Navbar from "../components/layout/Navbar";
 import Sidebar from "../components/layout/Sidebar";
-import type { ReactNode } from "react";
+
 
 type DashboardLayoutProps = {
   children: ReactNode;
 };
 
+
 export default function DashboardLayout({
   children,
 }: DashboardLayoutProps) {
-  return (
-    <div className="min-h-screen bg-gray-100">
+  const [
+    mobileMenuOpen,
+    setMobileMenuOpen,
+  ] = useState(false);
 
-      <Navbar />
+
+  return (
+    <div className="min-h-screen bg-[#eaf0f5]">
+
+      <Navbar
+        onMenuClick={() =>
+          setMobileMenuOpen(true)
+        }
+      />
+
 
       <div className="flex">
 
-        <Sidebar />
+        <Sidebar
+          mobileOpen={mobileMenuOpen}
+          onClose={() =>
+            setMobileMenuOpen(false)
+          }
+        />
 
-        <main className="flex-1 p-6">
-          {children}
+
+        <main className="min-w-0 flex-1">
+
+          <div className="page-enter mx-auto w-full max-w-[1600px] p-4 sm:p-6 lg:p-8">
+
+            {children}
+
+          </div>
+
         </main>
 
       </div>

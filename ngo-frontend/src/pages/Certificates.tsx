@@ -1,27 +1,57 @@
-import { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
+import {
+  useEffect,
+  useState,
+} from "react";
+
+import {
+  Link,
+} from "react-router-dom";
 
 import DashboardLayout from "../layouts/DashboardLayout";
+
 import {
   getMyCertificates,
   type Certificate,
 } from "../api/certificates";
 
-function formatDate(date: string) {
-  return new Date(date).toLocaleDateString("en-US", {
-    year: "numeric",
-    month: "short",
-    day: "numeric",
-  });
+
+function formatDate(
+  date: string,
+) {
+  return new Date(
+    date,
+  ).toLocaleDateString(
+    "en-US",
+    {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+    },
+  );
 }
 
-export default function Certificates() {
-  const [certificates, setCertificates] = useState<
-    Certificate[]
-  >([]);
 
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
+export default function Certificates() {
+  const [
+    certificates,
+    setCertificates,
+  ] =
+    useState<Certificate[]>(
+      [],
+    );
+
+  const [
+    loading,
+    setLoading,
+  ] =
+    useState(true);
+
+  const [
+    error,
+    setError,
+  ] =
+    useState("");
+
 
   useEffect(() => {
     async function loadCertificates() {
@@ -29,18 +59,20 @@ export default function Certificates() {
         setLoading(true);
         setError("");
 
-        const data = await getMyCertificates();
+        const data =
+          await getMyCertificates();
 
-        setCertificates(data);
-      } catch (err) {
-        console.error(
-          "Failed to load certificates:",
-          err,
+        setCertificates(
+          data,
         );
+
+      } catch (err) {
+        console.error(err);
 
         setError(
-          "Failed to load your certificates. Please try again.",
+          "Failed to load your certificates.",
         );
+
       } finally {
         setLoading(false);
       }
@@ -49,137 +81,167 @@ export default function Certificates() {
     loadCertificates();
   }, []);
 
+
   return (
     <DashboardLayout>
+
       <div className="space-y-6">
 
-        {/* Header */}
 
-        <div>
-          <h1 className="text-3xl font-bold text-gray-900">
+        <section className="rounded-3xl bg-gradient-to-br from-[#263449] to-[#31445f] p-7 text-slate-100 shadow-lg sm:p-8">
+
+          <div className="inline-flex rounded-full border border-blue-300/20 bg-blue-300/10 px-3 py-1 text-xs font-semibold text-blue-200">
+            Achievements
+          </div>
+
+          <h1 className="mt-3 text-3xl font-bold">
             My Certificates
           </h1>
 
-          <p className="mt-1 text-gray-600">
-            View and verify certificates earned from
-            completed volunteer events.
+          <p className="mt-2 text-slate-300">
+            View and verify certificates
+            earned from completed volunteer
+            events.
           </p>
-        </div>
 
-        {/* Loading */}
+        </section>
 
-        {loading && (
-          <div className="rounded-lg border bg-white p-8 text-center">
-            <p className="text-gray-600">
-              Loading your certificates...
-            </p>
+
+        {error && (
+          <div className="rounded-2xl border border-red-200 bg-red-100/60 p-4 text-red-700">
+            {error}
           </div>
         )}
 
-        {/* Error */}
 
-        {!loading && error && (
-          <div className="rounded-lg border border-red-300 bg-red-50 p-6">
-            <p className="text-red-700">
-              {error}
-            </p>
+        {loading ? (
+
+          <div className="rounded-2xl bg-[#f4f7fa] p-8 text-slate-500">
+            Loading certificates...
           </div>
-        )}
 
-        {/* Empty */}
+        ) : certificates.length ===
+          0 ? (
 
-        {!loading &&
-          !error &&
-          certificates.length === 0 && (
-            <div className="rounded-lg border bg-white p-8 text-center">
-              <h2 className="text-lg font-semibold text-gray-900">
-                No certificates yet
-              </h2>
+          <div className="rounded-2xl border border-dashed border-slate-300 bg-[#f4f7fa] p-10 text-center">
 
-              <p className="mt-2 text-gray-500">
-                Certificates will appear here after you
-                complete eligible volunteer events.
-              </p>
+            <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-blue-100 text-2xl">
+              ✓
             </div>
-          )}
 
-        {/* Certificates */}
+            <h2 className="mt-4 text-xl font-bold text-slate-800">
+              No certificates yet
+            </h2>
 
-        {!loading &&
-          !error &&
-          certificates.length > 0 && (
-            <div className="grid gap-5">
-              {certificates.map((certificate) => (
-                <div
-                  key={certificate.id}
-                  className="rounded-lg border bg-white p-6 shadow-sm"
+            <p className="mt-2 text-slate-500">
+              Certificates will appear
+              after eligible events are
+              completed.
+            </p>
+
+          </div>
+
+        ) : (
+
+          <div className="grid gap-5 md:grid-cols-2">
+
+            {certificates.map(
+              (certificate) => (
+
+                <article
+                  key={
+                    certificate.id
+                  }
+                  className="overflow-hidden rounded-2xl border border-slate-300/60 bg-[#f4f7fa] shadow-[0_4px_20px_rgba(15,23,42,0.04)]"
                 >
-                  <div className="flex flex-col justify-between gap-5 md:flex-row">
 
-                    {/* Certificate information */}
+                  <div className="h-1.5 bg-gradient-to-r from-blue-500 to-teal-400" />
 
-                    <div>
-                      <h2 className="text-xl font-semibold text-gray-900">
-                        {certificate.event_title}
-                      </h2>
 
-                      <p className="mt-1 text-gray-500">
-                        Certificate #{certificate.id}
-                      </p>
+                  <div className="p-6">
 
-                      <div className="mt-4 space-y-2 text-sm text-gray-600">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-blue-600">
+                      Certificate #
+                      {
+                        certificate.id
+                      }
+                    </p>
 
-                        <p>
-                          <span className="font-medium text-gray-900">
-                            Issued:
-                          </span>{" "}
+                    <h2 className="mt-2 text-xl font-bold text-slate-900">
+                      {
+                        certificate.event_title
+                      }
+                    </h2>
+
+
+                    <div className="mt-5 space-y-3">
+
+                      <div className="rounded-xl bg-[#eaf0f5] p-4">
+                        <p className="text-xs font-semibold uppercase text-slate-500">
+                          Issued
+                        </p>
+
+                        <p className="mt-1 font-semibold text-slate-700">
                           {formatDate(
                             certificate.issued_at,
                           )}
                         </p>
+                      </div>
 
-                        <p>
-                          <span className="font-medium text-gray-900">
-                            Verification Code:
-                          </span>{" "}
-                          <span className="font-mono">
-                            {certificate.verification_code}
-                          </span>
+
+                      <div className="rounded-xl bg-[#eaf0f5] p-4">
+                        <p className="text-xs font-semibold uppercase text-slate-500">
+                          Verification Code
                         </p>
 
+                        <p className="mt-1 break-all font-mono text-sm text-slate-700">
+                          {
+                            certificate.verification_code
+                          }
+                        </p>
                       </div>
+
                     </div>
 
-                    {/* Actions */}
 
-                    <div className="flex flex-col gap-2 md:min-w-40">
+                    <div className="mt-5 grid gap-3 sm:grid-cols-2">
 
                       {certificate.file && (
                         <a
-                          href={certificate.file}
+                          href={
+                            certificate.file
+                          }
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="rounded-lg bg-blue-600 px-4 py-2 text-center font-medium text-white hover:bg-blue-700"
+                          className="rounded-xl bg-blue-600 px-4 py-3 text-center font-semibold text-white hover:bg-blue-700"
                         >
                           View Certificate
                         </a>
                       )}
 
+
                       <Link
                         to={`/certificate/verify/${certificate.verification_code}`}
-                        className="rounded-lg bg-gray-100 px-4 py-2 text-center font-medium text-gray-800 hover:bg-gray-200"
+                        className="rounded-xl border border-slate-300 bg-[#e3eaf1] px-4 py-3 text-center font-semibold text-slate-700 hover:border-blue-300 hover:text-blue-700"
                       >
-                        Verify Certificate
+                        Verify
                       </Link>
 
                     </div>
+
                   </div>
-                </div>
-              ))}
-            </div>
-          )}
+
+                </article>
+
+              ),
+            )}
+
+          </div>
+
+        )}
 
       </div>
+
     </DashboardLayout>
   );
 }

@@ -7,6 +7,8 @@ from .views import (
     PasswordResetConfirmView,
     PasswordResetRequestView,
     CoordinatorListView,
+    DonorProfileView,
+    CoordinatorProfileView,
 )
 
 
@@ -17,4 +19,6 @@ urlpatterns = [
     path("password-reset/", PasswordResetRequestView.as_view(),name="password-reset"),
     path("password-reset/confirm/<str:uidb64>/<str:token>/", PasswordResetConfirmView.as_view(),name="password-reset-confirm"),
     path("coordinators/",CoordinatorListView.as_view(),name="coordinator-list"),
+    path("donor-profile/",DonorProfileView.as_view(),name="donor-profile"),
+    path("coordinator-profile/",CoordinatorProfileView.as_view(),name="coordinator-profile"),
 ]

@@ -125,13 +125,23 @@ export async function cancelEvent(
   return response.data.event;
 }
 
+export type CompleteEventResult = {
+  message: string;
+  event_id: number;
+  event_status: string;
+  event_hours: string;
+  completed_registrations: number;
+  certificates_generated: number;
+};
+
 export async function completeEvent(
   eventId: number,
-) {
-  const response = await api.post(
-    `/api/events/${eventId}/complete/`,
-    {},
-  );
+): Promise<CompleteEventResult> {
+  const response =
+    await api.post<CompleteEventResult>(
+      `/api/events/${eventId}/complete/`,
+      {},
+    );
 
   return response.data;
 }

@@ -39,3 +39,16 @@ export async function verifyCertificate(
 
   return response.data;
 }
+
+export async function downloadAttendanceReport(
+  eventId: number,
+): Promise<Blob> {
+  const response = await api.get(
+    `/api/certificates/events/${eventId}/attendance-report/`,
+    {
+      responseType: "blob",
+    },
+  );
+
+  return response.data;
+}

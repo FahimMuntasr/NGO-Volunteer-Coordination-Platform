@@ -1,58 +1,167 @@
-import { useEffect, useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import {
+  useEffect,
+  useState,
+} from "react";
 
-import { getEvent, registerForEvent } from "../api/events";
+import {
+  Link,
+  useParams,
+} from "react-router-dom";
+
+import {
+  getEvent,
+  registerForEvent,
+} from "../api/events";
+
 import {
   getMyRegistrations,
   type Registration,
 } from "../api/registration";
 
-import type { Event } from "../types/event";
+import {
+  useAuth,
+} from "../context/useAuth";
+
+import type {
+  Event,
+} from "../types/event";
 
 import DashboardLayout from "../layouts/DashboardLayout";
 
-function formatDateTime(date: string) {
-  return new Date(date).toLocaleString();
+
+function formatDateTime(
+  date: string,
+) {
+  return new Date(
+    date,
+  ).toLocaleString(
+    "en-US",
+    {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+      hour: "numeric",
+      minute: "2-digit",
+    },
+  );
 }
 
-function getStatusClass(status: Registration["status"]) {
+
+function registrationStatusClass(
+  status: Registration["status"],
+) {
   switch (status) {
     case "APPROVED":
-      return "bg-green-100 text-green-700";
+      return "bg-emerald-100 text-emerald-700";
 
     case "PENDING":
-      return "bg-yellow-100 text-yellow-700";
+      return "bg-amber-100 text-amber-700";
 
     case "REJECTED":
       return "bg-red-100 text-red-700";
 
     case "CANCELLED":
-      return "bg-gray-100 text-gray-700";
+      return "bg-slate-200 text-slate-700";
 
     case "COMPLETED":
       return "bg-blue-100 text-blue-700";
 
     default:
-      return "bg-gray-100 text-gray-700";
+      return "bg-slate-200 text-slate-700";
   }
 }
 
+
+function eventStatusClass(
+  status: Event["status"],
+) {
+  switch (status) {
+    case "OPEN":
+      return "bg-emerald-100 text-emerald-700";
+
+    case "IN_PROGRESS":
+      return "bg-blue-100 text-blue-700";
+
+    case "COMPLETED":
+      return "bg-slate-200 text-slate-700";
+
+    case "CANCELLED":
+      return "bg-red-100 text-red-700";
+
+    case "DRAFT":
+      return "bg-amber-100 text-amber-700";
+
+    default:
+      return "bg-slate-200 text-slate-700";
+  }
+}
+
+
 export default function EventDetails() {
-  const { id } = useParams<{ id: string }>();
+  const {
+    id,
+  } =
+    useParams<{
+      id: string;
+    }>();
 
-  const [event, setEvent] = useState<Event | null>(null);
+  const {
+    user,
+  } =
+    useAuth();
 
-  const [registration, setRegistration] =
-    useState<Registration | null>(null);
 
-  const [loading, setLoading] = useState(true);
-  const [registering, setRegistering] = useState(false);
+  const [
+    event,
+    setEvent,
+  ] =
+    useState<Event | null>(
+      null,
+    );
 
-  const [registrationSuccess, setRegistrationSuccess] =
+  const [
+    registration,
+    setRegistration,
+  ] =
+    useState<Registration | null>(
+      null,
+    );
+
+  const [
+    loading,
+    setLoading,
+  ] =
+    useState(true);
+
+  const [
+    registering,
+    setRegistering,
+  ] =
+    useState(false);
+
+  const [
+    eventError,
+    setEventError,
+  ] =
     useState("");
 
-  const [registrationError, setRegistrationError] =
+  const [
+    registrationSuccess,
+    setRegistrationSuccess,
+  ] =
     useState("");
+
+  const [
+    registrationError,
+    setRegistrationError,
+  ] =
+    useState("");
+
+
+  const isVolunteer =
+    user?.role ===
+    "VOLUNTEER";
+
 
   useEffect(() => {
     async function loadEvent() {
@@ -63,41 +172,89 @@ export default function EventDetails() {
 
       try {
         setLoading(true);
+        setEventError("");
         setRegistrationError("");
 
-        const [eventData, registrationsData] =
-          await Promise.all([
-            getEvent(Number(id)),
-            getMyRegistrations(),
-          ]);
-
-        setEvent(eventData);
-
-        const existingRegistration =
-          registrationsData.find(
-            (item) => item.event === Number(id),
+        const eventData =
+          await getEvent(
+            Number(id),
           );
 
-        setRegistration(
-          existingRegistration ?? null,
-        );
-      } catch (error) {
-        console.error(
-          "Failed to load event:",
-          error,
+        setEvent(
+          eventData,
         );
 
-        setEvent(null);
+
+        if (isVolunteer) {
+          try {
+            const registrationsData =
+              await getMyRegistrations();
+
+            const existingRegistration =
+              registrationsData.find(
+                (item) =>
+                  item.event ===
+                  Number(id),
+              );
+
+            setRegistration(
+              existingRegistration ??
+                null,
+            );
+
+          } catch (err) {
+            console.error(
+              "Failed to load registration:",
+              err,
+            );
+
+            setRegistration(
+              null,
+            );
+
+            setRegistrationError(
+              "Unable to load your registration status.",
+            );
+          }
+
+        } else {
+          setRegistration(
+            null,
+          );
+        }
+
+      } catch (err) {
+        console.error(
+          "Failed to load event:",
+          err,
+        );
+
+        setEvent(
+          null,
+        );
+
+        setEventError(
+          "Event not found or you do not have permission to view it.",
+        );
+
       } finally {
         setLoading(false);
       }
     }
 
     loadEvent();
-  }, [id]);
+
+  }, [
+    id,
+    isVolunteer,
+  ]);
+
 
   async function handleRegister() {
-    if (!id) {
+    if (
+      !id ||
+      !isVolunteer
+    ) {
       return;
     }
 
@@ -107,17 +264,25 @@ export default function EventDetails() {
       setRegistrationError("");
 
       const newRegistration =
-        await registerForEvent(Number(id));
+        await registerForEvent(
+          Number(id),
+        );
 
-      setRegistration(newRegistration);
+      setRegistration(
+        newRegistration,
+      );
 
       setRegistrationSuccess(
         "You have successfully registered for this event.",
       );
-    } catch (error: unknown) {
+
+    } catch (
+      error: unknown
+    ) {
       if (
         error &&
-        typeof error === "object" &&
+        typeof error ===
+          "object" &&
         "response" in error
       ) {
         const response = (
@@ -131,290 +296,495 @@ export default function EventDetails() {
         ).response;
 
         setRegistrationError(
-          response?.data?.detail ||
+          response?.data
+            ?.detail ||
             "Failed to register for this event.",
         );
+
       } else {
         setRegistrationError(
           "Failed to register for this event.",
         );
       }
+
     } finally {
       setRegistering(false);
     }
   }
 
+
   if (loading) {
     return (
       <DashboardLayout>
-        <h1 className="mb-6 text-3xl font-bold">
-          Event Details
-        </h1>
 
-        <p className="text-gray-600">
-          Loading event...
-        </p>
+        <div className="rounded-2xl border border-slate-300/60 bg-[#f4f7fa] p-8">
+
+          <div className="flex items-center gap-3 text-slate-500">
+
+            <div className="h-5 w-5 animate-spin rounded-full border-2 border-slate-300 border-t-blue-500" />
+
+            Loading event...
+
+          </div>
+
+        </div>
+
       </DashboardLayout>
     );
   }
+
 
   if (!event) {
     return (
       <DashboardLayout>
-        <h1 className="mb-6 text-3xl font-bold">
-          Event Details
-        </h1>
 
-        <div className="rounded-lg bg-red-50 p-4 text-red-600">
-          Event not found or could not be loaded.
+        <div className="mx-auto max-w-4xl">
+
+          <div className="rounded-2xl border border-red-200 bg-red-100/60 p-6 text-red-700">
+            {eventError ||
+              "Event could not be loaded."}
+          </div>
+
+
+          <Link
+            to="/dashboard/events"
+            className="mt-4 inline-flex items-center gap-2 text-sm font-semibold text-blue-600 hover:text-blue-800"
+          >
+            ← Back to Events
+          </Link>
+
         </div>
 
-        <Link
-          to="/dashboard/events"
-          className="mt-4 inline-block text-blue-600 hover:underline"
-        >
-          ← Back to Events
-        </Link>
       </DashboardLayout>
     );
   }
 
+
   return (
     <DashboardLayout>
-      <div className="max-w-4xl">
+
+      <div className="mx-auto max-w-5xl space-y-5">
+
+
+        {/* Back */}
+
         <Link
           to="/dashboard/events"
-          className="mb-6 inline-block text-sm text-blue-600 hover:underline"
+          className="inline-flex items-center gap-2 text-sm font-semibold text-slate-600 transition hover:text-blue-700"
         >
           ← Back to Events
         </Link>
 
-        <div className="rounded-xl bg-white p-8 shadow-sm">
 
-          {/* Header */}
+        {/* Header */}
 
-          <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-            <div>
-              <p className="mb-2 text-sm font-medium text-gray-500">
-                {event.ngo_name}
-              </p>
+        <section className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-[#263449] to-[#31445f] p-7 text-slate-100 shadow-lg sm:p-9">
 
-              <h1 className="text-3xl font-bold text-gray-900">
-                {event.title}
-              </h1>
+          <div className="absolute -right-16 -top-20 h-56 w-56 rounded-full bg-blue-400/10" />
+
+          <div className="absolute -bottom-24 right-32 h-52 w-52 rounded-full bg-teal-400/10" />
+
+
+          <div className="relative">
+
+            <div className="flex flex-col justify-between gap-5 sm:flex-row sm:items-start">
+
+              <div>
+
+                <p className="text-sm font-semibold text-blue-300">
+                  {
+                    event.ngo_name
+                  }
+                </p>
+
+                <h1 className="mt-2 text-3xl font-bold tracking-tight sm:text-4xl">
+                  {
+                    event.title
+                  }
+                </h1>
+
+              </div>
+
+
+              <span
+                className={`w-fit rounded-full px-3 py-1.5 text-xs font-bold ${eventStatusClass(
+                  event.status,
+                )}`}
+              >
+                {
+                  event.status
+                }
+              </span>
+
             </div>
 
-            <span
-              className={`w-fit rounded-full px-3 py-1 text-sm font-medium ${
-                event.status === "OPEN"
-                  ? "bg-green-100 text-green-700"
-                  : event.status === "IN_PROGRESS"
-                    ? "bg-blue-100 text-blue-700"
-                    : event.status === "COMPLETED"
-                      ? "bg-gray-100 text-gray-700"
-                      : event.status === "CANCELLED"
-                        ? "bg-red-100 text-red-700"
-                        : "bg-yellow-100 text-yellow-700"
-              }`}
-            >
-              {event.status}
-            </span>
-          </div>
 
-          {/* Description */}
-
-          <div className="mb-8">
-            <h2 className="mb-2 text-lg font-semibold">
-              About this event
-            </h2>
-
-            <p className="leading-7 text-gray-600">
-              {event.description}
+            <p className="mt-5 max-w-3xl text-sm leading-7 text-slate-300 sm:text-base">
+              {
+                event.description
+              }
             </p>
+
           </div>
 
-          {/* Event Information */}
+        </section>
 
-          <div className="grid gap-6 border-t pt-6 md:grid-cols-2">
 
-            <div>
-              <p className="text-sm font-medium text-gray-500">
+        {/* Details */}
+
+        <section className="rounded-2xl border border-slate-300/60 bg-[#f4f7fa] p-6 shadow-[0_4px_20px_rgba(15,23,42,0.04)] sm:p-7">
+
+          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-blue-600">
+            Event Information
+          </p>
+
+          <h2 className="mt-1 text-xl font-bold text-slate-900">
+            Details
+          </h2>
+
+
+          <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+
+
+            <div className="rounded-xl bg-[#eaf0f5] p-4">
+
+              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
                 Location
               </p>
 
-              <p className="mt-1 text-gray-900">
-                {event.location}
+              <p className="mt-2 font-semibold text-slate-800">
+                {
+                  event.location
+                }
               </p>
+
             </div>
 
-            <div>
-              <p className="text-sm font-medium text-gray-500">
-                Volunteer Capacity
+
+            <div className="rounded-xl bg-[#eaf0f5] p-4">
+
+              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                Capacity
               </p>
 
-              <p className="mt-1 text-gray-900">
-                {event.volunteer_capacity}
+              <p className="mt-2 font-semibold text-slate-800">
+                {
+                  event.volunteer_capacity
+                }{" "}
+                volunteers
               </p>
+
             </div>
 
-            <div>
-              <p className="text-sm font-medium text-gray-500">
-                Start Date
+
+            <div className="rounded-xl bg-[#eaf0f5] p-4">
+
+              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                Status
               </p>
 
-              <p className="mt-1 text-gray-900">
-                {formatDateTime(event.start_date)}
+              <p className="mt-2 font-semibold text-slate-800">
+                {
+                  event.status
+                }
               </p>
+
             </div>
 
-            <div>
-              <p className="text-sm font-medium text-gray-500">
-                End Date
+
+            <div className="rounded-xl bg-[#eaf0f5] p-4">
+
+              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                Starts
               </p>
 
-              <p className="mt-1 text-gray-900">
-                {formatDateTime(event.end_date)}
+              <p className="mt-2 font-semibold text-slate-800">
+                {formatDateTime(
+                  event.start_date,
+                )}
               </p>
+
             </div>
 
-            <div>
-              <p className="text-sm font-medium text-gray-500">
+
+            <div className="rounded-xl bg-[#eaf0f5] p-4">
+
+              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                Ends
+              </p>
+
+              <p className="mt-2 font-semibold text-slate-800">
+                {formatDateTime(
+                  event.end_date,
+                )}
+              </p>
+
+            </div>
+
+
+            <div className="rounded-xl bg-[#eaf0f5] p-4">
+
+              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
                 Registration Deadline
               </p>
 
-              <p className="mt-1 text-gray-900">
+              <p className="mt-2 font-semibold text-slate-800">
                 {formatDateTime(
                   event.registration_deadline,
                 )}
               </p>
-            </div>
 
-            <div>
-              <p className="text-sm font-medium text-gray-500">
-                Event Status
-              </p>
-
-              <p className="mt-1 text-gray-900">
-                {event.status}
-              </p>
             </div>
 
           </div>
 
-          {/* Required Skills */}
+        </section>
 
-          {event.required_skills.length > 0 && (
-            <div className="mt-8 border-t pt-6">
-              <h2 className="mb-3 text-lg font-semibold">
-                Required Skills
-              </h2>
 
-              <div className="flex flex-wrap gap-2">
-                {event.required_skills.map(
-                  (skill) => (
-                    <span
-                      key={skill}
-                      className="rounded-full bg-blue-50 px-3 py-1 text-sm text-blue-700"
-                    >
-                      {skill}
-                    </span>
-                  ),
-                )}
-              </div>
-            </div>
-          )}
+        {/* Skills */}
 
-          {/* Registration */}
+        {event.required_skills.length >
+          0 && (
 
-          <div className="mt-8 border-t pt-6">
+          <section className="rounded-2xl border border-slate-300/60 bg-[#f4f7fa] p-6 shadow-[0_4px_20px_rgba(15,23,42,0.04)]">
 
-            {registrationSuccess && (
-              <div className="mb-4 rounded-lg bg-green-50 p-4 text-green-700">
-                {registrationSuccess}
-              </div>
-            )}
+            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-teal-600">
+              Requirements
+            </p>
 
-            {registrationError && (
-              <div className="mb-4 rounded-lg bg-red-50 p-4 text-red-700">
-                {registrationError}
-              </div>
-            )}
+            <h2 className="mt-1 text-xl font-bold text-slate-900">
+              Required Skills
+            </h2>
 
-            {registration ? (
-              <div className="rounded-lg border bg-gray-50 p-5">
 
-                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="mt-4 flex flex-wrap gap-2">
 
-                  <div>
-                    <h3 className="font-semibold text-gray-900">
-                      You are already registered
-                    </h3>
-
-                    <p className="mt-1 text-sm text-gray-500">
-                      Registration ID:{" "}
-                      {registration.id}
-                    </p>
-                  </div>
+              {event.required_skills.map(
+                (skill) => (
 
                   <span
-                    className={`w-fit rounded-full px-3 py-1 text-sm font-medium ${getStatusClass(
+                    key={
+                      skill
+                    }
+                    className="rounded-full border border-blue-200 bg-blue-100/60 px-3 py-1.5 text-sm font-medium text-blue-700"
+                  >
+                    {
+                      skill
+                    }
+                  </span>
+
+                ),
+              )}
+
+            </div>
+
+          </section>
+
+        )}
+
+
+        {/* Volunteer Registration */}
+
+        {isVolunteer && (
+
+          <section className="rounded-2xl border border-slate-300/60 bg-[#f4f7fa] p-6 shadow-[0_4px_20px_rgba(15,23,42,0.04)] sm:p-7">
+
+            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-blue-600">
+              Registration
+            </p>
+
+            <h2 className="mt-1 text-xl font-bold text-slate-900">
+              Your Registration
+            </h2>
+
+
+            {registrationSuccess && (
+
+              <div className="mt-5 rounded-xl border border-emerald-200 bg-emerald-100/60 p-4 text-sm font-medium text-emerald-700">
+                ✓ {
+                  registrationSuccess
+                }
+              </div>
+
+            )}
+
+
+            {registrationError && (
+
+              <div className="mt-5 rounded-xl border border-red-200 bg-red-100/60 p-4 text-sm text-red-700">
+                {
+                  registrationError
+                }
+              </div>
+
+            )}
+
+
+            {registration ? (
+
+              <div className="mt-5 rounded-2xl border border-slate-300/60 bg-[#eaf0f5] p-5">
+
+                <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
+
+                  <div>
+
+                    <p className="font-bold text-slate-800">
+                      You're registered
+                    </p>
+
+                    <p className="mt-1 text-sm text-slate-500">
+                      Registration #
+                      {
+                        registration.id
+                      }
+                    </p>
+
+                  </div>
+
+
+                  <span
+                    className={`w-fit rounded-full px-3 py-1 text-xs font-bold ${registrationStatusClass(
                       registration.status,
                     )}`}
                   >
-                    {registration.status}
+                    {
+                      registration.status
+                    }
                   </span>
 
                 </div>
 
-                <div className="mt-4 grid gap-3 text-sm text-gray-600 md:grid-cols-2">
+
+                <div className="mt-5 grid gap-4 border-t border-slate-300/60 pt-4 sm:grid-cols-2">
 
                   <div>
-                    <span className="font-medium text-gray-900">
-                      Registered:
-                    </span>{" "}
-                    {formatDateTime(
-                      registration.registered_at,
-                    )}
+
+                    <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                      Registered
+                    </p>
+
+                    <p className="mt-1 text-sm font-medium text-slate-700">
+                      {formatDateTime(
+                        registration
+                          .registered_at,
+                      )}
+                    </p>
+
                   </div>
 
+
                   <div>
-                    <span className="font-medium text-gray-900">
-                      Attendance:
-                    </span>{" "}
-                    {registration.attendance_status}
+
+                    <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                      Attendance
+                    </p>
+
+                    <p className="mt-1 text-sm font-medium text-slate-700">
+                      {
+                        registration
+                          .attendance_status
+                      }
+                    </p>
+
                   </div>
 
                 </div>
 
+
                 <Link
                   to="/dashboard/registered-events"
-                  className="mt-5 inline-block text-sm font-medium text-blue-600 hover:underline"
+                  className="mt-5 inline-flex items-center gap-2 text-sm font-semibold text-blue-600 hover:text-blue-800"
                 >
-                  View all my registrations →
+                  View my registrations →
                 </Link>
 
               </div>
+
             ) : (
-              <button
-                type="button"
-                onClick={handleRegister}
-                disabled={
-                  event.status !== "OPEN" ||
-                  registering
-                }
-                className="w-full rounded-lg bg-blue-600 px-6 py-3 font-semibold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-gray-300"
-              >
-                {registering
-                  ? "Registering..."
-                  : event.status === "OPEN"
-                    ? "Register for Event"
-                    : "Registration Unavailable"}
-              </button>
+
+              <div className="mt-5">
+
+                <p className="mb-4 text-sm text-slate-500">
+                  {event.status ===
+                  "OPEN"
+                    ? "Registration is currently open for this event."
+                    : "Registration is not currently available for this event."}
+                </p>
+
+
+                <button
+                  type="button"
+                  onClick={
+                    handleRegister
+                  }
+                  disabled={
+                    event.status !==
+                      "OPEN" ||
+                    registering
+                  }
+                  className="w-full rounded-xl bg-blue-600 px-6 py-3.5 font-semibold text-white shadow-sm transition hover:bg-blue-700 disabled:bg-slate-300 disabled:text-slate-500"
+                >
+                  {registering
+                    ? "Registering..."
+                    : event.status ===
+                        "OPEN"
+                      ? "Register for Event"
+                      : "Registration Unavailable"}
+                </button>
+
+              </div>
+
             )}
 
-          </div>
-        </div>
+          </section>
+
+        )}
+
+
+        {/* Other Roles */}
+
+        {!isVolunteer && (
+
+          <section className="rounded-2xl border border-slate-300/60 bg-[#e3eaf1] p-5">
+
+            <div className="flex gap-3">
+
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-blue-100 text-blue-600">
+                i
+              </div>
+
+              <div>
+
+                <p className="font-semibold text-slate-800">
+                  Event access
+                </p>
+
+                <p className="mt-1 text-sm text-slate-600">
+
+                  {user?.role ===
+                    "NGO_ADMIN" &&
+                    "You are viewing this event as an NGO Administrator."}
+
+                  {user?.role ===
+                    "COORDINATOR" &&
+                    "You are viewing this event as its assigned Coordinator."}
+
+                  {user?.role ===
+                    "DONOR" &&
+                    "You are viewing this event as a Donor."}
+
+                </p>
+
+              </div>
+
+            </div>
+
+          </section>
+
+        )}
+
       </div>
+
     </DashboardLayout>
   );
 }

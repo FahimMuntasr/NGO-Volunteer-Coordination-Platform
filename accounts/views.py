@@ -14,8 +14,14 @@ from django.utils.http import (
     urlsafe_base64_encode,
 )
 
-from .models import User
+from .models import (
+    CoordinatorProfile,
+    DonorProfile,
+    User,
+)
 from .serializers import (
+    CoordinatorProfileSerializer,
+    DonorProfileSerializer,
     PasswordResetConfirmSerializer,
     PasswordResetRequestSerializer,
     RegisterSerializer,
@@ -261,5 +267,150 @@ class PasswordResetConfirmView(APIView):
                     "Please log in again."
                 )
             },
+            status=status.HTTP_200_OK,
+        )
+        
+class DonorProfileView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get_profile(self, user):
+        profile, _ = (
+            DonorProfile.objects.get_or_create(
+                user=user
+            )
+        )
+
+        return profile
+
+    def get(self, request):
+        if request.user.role != User.Role.DONOR:
+            return Response(
+                {
+                    "detail": (
+                        "Only donors can view "
+                        "donor profiles."
+                    )
+                },
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        profile = self.get_profile(
+            request.user
+        )
+
+        return Response(
+            DonorProfileSerializer(
+                profile
+            ).data,
+            status=status.HTTP_200_OK,
+        )
+
+    def patch(self, request):
+        if request.user.role != User.Role.DONOR:
+            return Response(
+                {
+                    "detail": (
+                        "Only donors can update "
+                        "donor profiles."
+                    )
+                },
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        profile = self.get_profile(
+            request.user
+        )
+
+        serializer = DonorProfileSerializer(
+            profile,
+            data=request.data,
+            partial=True,
+        )
+
+        serializer.is_valid(
+            raise_exception=True
+        )
+
+        serializer.save()
+
+        return Response(
+            serializer.data,
+            status=status.HTTP_200_OK,
+        )
+        
+class CoordinatorProfileView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get_profile(self, user):
+        profile, _ = (
+            CoordinatorProfile.objects
+            .get_or_create(
+                user=user
+            )
+        )
+
+        return profile
+
+    def get(self, request):
+        if (
+            request.user.role
+            != User.Role.COORDINATOR
+        ):
+            return Response(
+                {
+                    "detail": (
+                        "Only coordinators can view "
+                        "coordinator profiles."
+                    )
+                },
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        profile = self.get_profile(
+            request.user
+        )
+
+        return Response(
+            CoordinatorProfileSerializer(
+                profile
+            ).data,
+            status=status.HTTP_200_OK,
+        )
+
+    def patch(self, request):
+        if (
+            request.user.role
+            != User.Role.COORDINATOR
+        ):
+            return Response(
+                {
+                    "detail": (
+                        "Only coordinators can update "
+                        "coordinator profiles."
+                    )
+                },
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        profile = self.get_profile(
+            request.user
+        )
+
+        serializer = (
+            CoordinatorProfileSerializer(
+                profile,
+                data=request.data,
+                partial=True,
+            )
+        )
+
+        serializer.is_valid(
+            raise_exception=True
+        )
+
+        serializer.save()
+
+        return Response(
+            serializer.data,
             status=status.HTTP_200_OK,
         )

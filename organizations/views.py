@@ -12,6 +12,7 @@ from events.models import Event, Registration
 
 from .models import NGO
 from .services import NGOVerificationService
+from .serializers import NGOProfileSerializer
 
 
 class NGODashboardView(APIView):
@@ -192,5 +193,157 @@ class NGOVerificationView(APIView):
                 ),
                 "message": message,
             },
+            status=status.HTTP_200_OK,
+        )
+        
+class VerifiedNGOListView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        if request.user.role != User.Role.DONOR:
+            return Response(
+                {
+                    "detail": (
+                        "Only donors can browse "
+                        "verified NGOs."
+                    )
+                },
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        ngos = (
+            NGO.objects
+            .filter(
+                is_verified=True,
+                verification_status=(
+                    NGO.VerificationStatus.VERIFIED
+                ),
+            )
+            .order_by("name")
+        )
+
+        data = []
+
+        for ngo in ngos:
+            data.append(
+                {
+                    "id": ngo.id,
+                    "name": ngo.name,
+                    "address": ngo.address,
+                    "email": ngo.email,
+                    "description": ngo.description,
+                    "registration_number": (
+                        ngo.registration_number
+                    ),
+                    "is_verified": ngo.is_verified,
+                }
+            )
+
+        return Response(
+            data,
+            status=status.HTTP_200_OK,
+        )
+        
+class NGOProfileView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get_ngo(self, user):
+        return (
+            NGO.objects
+            .filter(
+                administrator=user
+            )
+            .first()
+        )
+
+    def get(self, request):
+        if (
+            request.user.role
+            != User.Role.NGO_ADMIN
+        ):
+            return Response(
+                {
+                    "detail": (
+                        "Only NGO administrators "
+                        "can view NGO profiles."
+                    )
+                },
+                status=(
+                    status.HTTP_403_FORBIDDEN
+                ),
+            )
+
+        ngo = self.get_ngo(
+            request.user
+        )
+
+        if ngo is None:
+            return Response(
+                {
+                    "detail": (
+                        "No NGO is associated "
+                        "with this account."
+                    )
+                },
+                status=(
+                    status.HTTP_404_NOT_FOUND
+                ),
+            )
+
+        return Response(
+            NGOProfileSerializer(
+                ngo
+            ).data,
+            status=status.HTTP_200_OK,
+        )
+
+    def patch(self, request):
+        if (
+            request.user.role
+            != User.Role.NGO_ADMIN
+        ):
+            return Response(
+                {
+                    "detail": (
+                        "Only NGO administrators "
+                        "can update NGO profiles."
+                    )
+                },
+                status=(
+                    status.HTTP_403_FORBIDDEN
+                ),
+            )
+
+        ngo = self.get_ngo(
+            request.user
+        )
+
+        if ngo is None:
+            return Response(
+                {
+                    "detail": (
+                        "No NGO is associated "
+                        "with this account."
+                    )
+                },
+                status=(
+                    status.HTTP_404_NOT_FOUND
+                ),
+            )
+
+        serializer = NGOProfileSerializer(
+            ngo,
+            data=request.data,
+            partial=True,
+        )
+
+        serializer.is_valid(
+            raise_exception=True
+        )
+
+        serializer.save()
+
+        return Response(
+            serializer.data,
             status=status.HTTP_200_OK,
         )

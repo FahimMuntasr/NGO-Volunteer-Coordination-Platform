@@ -162,34 +162,6 @@ class VolunteerRanker:
                 f"{volunteer.name:<10} "
                 f"Score: {score:.2f}"
             )
-    def get_ranking(self, volunteers):
-        if self.strategy is None:
-            return []
-
-        ranked = sorted(
-            volunteers,
-            key=lambda volunteer: self.strategy.rank(volunteer),
-            reverse=True,
-        )
-
-        results = []
-
-        for position, volunteer in enumerate(ranked, start=1):
-            results.append(
-                {
-                    "position": position,
-                    "name": volunteer.name,
-                    "skills": volunteer.skills,
-                    "completed_events": volunteer.completed_events,
-                    "total_hours": volunteer.total_hours,
-                    "score": round(
-                        self.strategy.rank(volunteer),
-                        2,
-                    ),
-                }
-            )
-
-        return results
 
 
 # ==========================================

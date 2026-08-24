@@ -1,6 +1,10 @@
 from rest_framework import serializers
 
-from .models import User
+from .models import (
+    CoordinatorProfile,
+    DonorProfile,
+    User,
+)
 
 from django.contrib.auth import password_validation
 from django.core.exceptions import ValidationError as DjangoValidationError
@@ -380,6 +384,156 @@ class RegisterSerializer(serializers.ModelSerializer):
 
         return user
     
+class CoordinatorProfileSerializer(
+    serializers.ModelSerializer
+):
+    first_name = serializers.CharField(
+        source="user.first_name",
+        required=False,
+        allow_blank=True,
+    )
+
+    last_name = serializers.CharField(
+        source="user.last_name",
+        required=False,
+        allow_blank=True,
+    )
+
+    email = serializers.EmailField(
+        source="user.email",
+        required=False,
+    )
+
+    phone = serializers.CharField(
+        source="user.phone",
+        required=False,
+        allow_blank=True,
+    )
+
+    username = serializers.CharField(
+        source="user.username",
+        read_only=True,
+    )
+
+    class Meta:
+        model = CoordinatorProfile
+
+        fields = [
+            "username",
+            "first_name",
+            "last_name",
+            "email",
+            "phone",
+            "specialization",
+            "experience_notes",
+        ]
+
+    def update(
+        self,
+        instance,
+        validated_data,
+    ):
+        user_data = validated_data.pop(
+            "user",
+            {},
+        )
+
+        user = instance.user
+
+        for field, value in user_data.items():
+            setattr(
+                user,
+                field,
+                value,
+            )
+
+        user.save()
+
+        for field, value in validated_data.items():
+            setattr(
+                instance,
+                field,
+                value,
+            )
+
+        instance.save()
+
+        return instance
+    
+class DonorProfileSerializer(serializers.ModelSerializer):
+    first_name = serializers.CharField(
+        source="user.first_name",
+        required=False,
+        allow_blank=True,
+    )
+
+    last_name = serializers.CharField(
+        source="user.last_name",
+        required=False,
+        allow_blank=True,
+    )
+
+    email = serializers.EmailField(
+        source="user.email",
+        required=False,
+    )
+
+    phone = serializers.CharField(
+        source="user.phone",
+        required=False,
+        allow_blank=True,
+    )
+
+    username = serializers.CharField(
+        source="user.username",
+        read_only=True,
+    )
+
+    class Meta:
+        model = DonorProfile
+
+        fields = [
+            "username",
+            "first_name",
+            "last_name",
+            "email",
+            "phone",
+            "organization_name",
+            "preferred_causes",
+        ]
+
+    def update(
+        self,
+        instance,
+        validated_data,
+    ):
+        user_data = validated_data.pop(
+            "user",
+            {},
+        )
+
+        user = instance.user
+
+        for field, value in user_data.items():
+            setattr(
+                user,
+                field,
+                value,
+            )
+
+        user.save()
+
+        for field, value in validated_data.items():
+            setattr(
+                instance,
+                field,
+                value,
+            )
+
+        instance.save()
+
+        return instance
+        
 class PasswordResetRequestSerializer(serializers.Serializer):
     email = serializers.EmailField()
 

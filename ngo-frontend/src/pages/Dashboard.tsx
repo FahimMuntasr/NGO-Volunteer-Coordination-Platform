@@ -1,56 +1,132 @@
-import { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
+import {
+  useEffect,
+  useState,
+} from "react";
+
+import {
+  Link,
+} from "react-router-dom";
+
 import { useAuth } from "../context/useAuth";
-import NGOAdminDashboard from "./admin/NGOAdminDashboard";
 
 import DashboardLayout from "../layouts/DashboardLayout";
 import StatCard from "../components/common/StatCard";
 
+import NGOAdminDashboard from "./admin/NGOAdminDashboard";
+import DonorDashboard from "./donor/DonorDashboard";
+import CoordinatorDashboard from "./coordinator/CoordinatorDashboard";
+
 import { getEvents } from "../api/events";
+
 import {
   getMyRegistrations,
   type Registration,
 } from "../api/registration";
-import { getVolunteerProfile } from "../api/volunteers";
-import { getMyCertificates } from "../api/certificates";
 
-import type { Event } from "../types/event";
-import type { Certificate } from "../types/certificate";
+import {
+  getVolunteerProfile,
+} from "../api/volunteers";
 
-function formatDate(date: string) {
-  return new Date(date).toLocaleDateString("en-US", {
-    month: "short",
-    day: "numeric",
-  });
+import {
+  getMyCertificates,
+} from "../api/certificates";
+
+import type {
+  Event,
+} from "../types/event";
+
+import type {
+  Certificate,
+} from "../types/certificate";
+
+
+function formatDate(
+  date: string,
+) {
+  return new Date(
+    date,
+  ).toLocaleDateString(
+    "en-US",
+    {
+      month: "short",
+      day: "numeric",
+    },
+  );
 }
 
+
+function registrationColor(
+  status: Registration["status"],
+) {
+  switch (status) {
+    case "APPROVED":
+      return "bg-emerald-100 text-emerald-700";
+
+    case "PENDING":
+      return "bg-amber-100 text-amber-700";
+
+    case "COMPLETED":
+      return "bg-blue-100 text-blue-700";
+
+    case "REJECTED":
+      return "bg-red-100 text-red-700";
+
+    case "CANCELLED":
+      return "bg-slate-200 text-slate-600";
+
+    default:
+      return "bg-slate-200 text-slate-600";
+  }
+}
+
+
 export default function Dashboard() {
-  const [events, setEvents] = useState<Event[]>([]);
+  const { user } =
+    useAuth();
 
-  const [registrations, setRegistrations] = useState<
-    Registration[]
-  >([]);
 
-  const [certificates, setCertificates] = useState<
-    Certificate[]
-  >([]);
+  const [
+    events,
+    setEvents,
+  ] = useState<Event[]>([]);
 
-  const [firstName, setFirstName] = useState("");
+  const [
+    registrations,
+    setRegistrations,
+  ] = useState<Registration[]>([]);
 
-  const [loading, setLoading] = useState(true);
+  const [
+    certificates,
+    setCertificates,
+  ] = useState<Certificate[]>([]);
 
-  const [error, setError] = useState("");
+  const [
+    firstName,
+    setFirstName,
+  ] = useState("");
 
-  const { user } = useAuth();
+  const [
+    totalHours,
+    setTotalHours,
+  ] = useState(0);
+
+  const [
+    loading,
+    setLoading,
+  ] = useState(true);
+
+  const [
+    error,
+    setError,
+  ] = useState("");
+
 
   useEffect(() => {
     async function loadDashboard() {
-      if (!user) {
-        setLoading(false);
-        return;
-      }
-      
-      if (user.role !== "VOLUNTEER") {
+      if (
+        !user ||
+        user.role !== "VOLUNTEER"
+      ) {
         setLoading(false);
         return;
       }
@@ -71,13 +147,28 @@ export default function Dashboard() {
           getMyCertificates(),
         ]);
 
-        setEvents(eventsData);
+        setEvents(
+          eventsData,
+        );
 
-        setRegistrations(registrationsData);
+        setRegistrations(
+          registrationsData,
+        );
 
-        setFirstName(profileData.first_name);
+        setFirstName(
+          profileData.first_name,
+        );
 
-        setCertificates(certificatesData);
+        setTotalHours(
+          Number(
+            profileData.total_hours,
+          ),
+        );
+
+        setCertificates(
+          certificatesData,
+        );
+
       } catch (err) {
         console.error(
           "Failed to load dashboard:",
@@ -85,338 +176,496 @@ export default function Dashboard() {
         );
 
         setError(
-          "Failed to load dashboard data. Please try again.",
+          "Unable to load your dashboard. Please try again.",
         );
+
       } finally {
         setLoading(false);
       }
     }
 
     loadDashboard();
+
   }, [user]);
 
-  if (user?.role === "NGO_ADMIN") {
-    return <NGOAdminDashboard />;
-  }
 
-  if (user && user.role !== "VOLUNTEER") {
+  /*
+   * Role-specific dashboards.
+   */
+
+  if (
+    user?.role ===
+    "NGO_ADMIN"
+  ) {
     return (
-      <DashboardLayout>
-        <div className="rounded-xl bg-white p-8 shadow">
-          <h1 className="text-3xl font-bold">
-            Welcome, {user.first_name || user.username}
-          </h1>
-  
-          <p className="mt-2 text-gray-600">
-            Role: {user.role}
-          </p>
-        </div>
-      </DashboardLayout>
+      <NGOAdminDashboard />
     );
   }
 
-  const now = new Date();
 
-  /*
-   * Events that are scheduled for the future.
-   */
-  const upcomingEvents = events
-    .filter((event) => {
-      return (
-        new Date(event.start_date) > now &&
-        event.status !== "CANCELLED" &&
-        event.status !== "COMPLETED"
+  if (
+    user?.role ===
+    "DONOR"
+  ) {
+    return (
+      <DonorDashboard />
+    );
+  }
+
+
+  if (
+    user?.role ===
+    "COORDINATOR"
+  ) {
+    return (
+      <CoordinatorDashboard />
+    );
+  }
+
+
+  const now =
+    new Date();
+
+
+  const upcomingEvents =
+    events
+      .filter(
+        (event) =>
+          new Date(
+            event.start_date,
+          ) > now &&
+          event.status !==
+            "CANCELLED" &&
+          event.status !==
+            "COMPLETED",
+      )
+      .sort(
+        (a, b) =>
+          new Date(
+            a.start_date,
+          ).getTime() -
+          new Date(
+            b.start_date,
+          ).getTime(),
+      )
+      .slice(
+        0,
+        4,
       );
-    })
-    .sort(
-      (a, b) =>
-        new Date(a.start_date).getTime() -
-        new Date(b.start_date).getTime(),
-    )
-    .slice(0, 3);
 
-  /*
-   * Registrations that are still active.
-   */
-  const upcomingRegistrations = registrations.filter(
-    (registration) =>
-      registration.status === "APPROVED" ||
-      registration.status === "PENDING",
-  );
 
-  /*
-   * Completed registrations.
-   */
-  const completedRegistrations = registrations.filter(
-    (registration) =>
-      registration.status === "COMPLETED",
-  );
+  const activeRegistrations =
+    registrations.filter(
+      (registration) =>
+        registration.status ===
+          "APPROVED" ||
+        registration.status ===
+          "PENDING",
+    );
+
 
   return (
     <DashboardLayout>
-      <div className="space-y-8">
 
-        {/* =========================
-            Welcome Banner
-        ========================== */}
+      <div className="space-y-7">
 
-        <div className="rounded-2xl bg-gradient-to-r from-blue-600 to-blue-500 p-8 text-white shadow-lg">
-          <h1 className="text-3xl font-bold">
-            Welcome back
-            {firstName ? `, ${firstName}` : ""} 👋
-          </h1>
 
-          <p className="mt-2 text-blue-100">
-            Ready for your next volunteer activity?
-          </p>
-        </div>
+        {/* Welcome */}
 
-        {/* =========================
-            Error
-        ========================== */}
+        <section className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-[#263449] to-[#31445f] p-7 text-slate-100 shadow-lg sm:p-9">
+
+          <div className="absolute -right-12 -top-20 h-56 w-56 rounded-full bg-blue-400/10" />
+
+          <div className="absolute -bottom-20 right-28 h-44 w-44 rounded-full bg-teal-400/10" />
+
+
+          <div className="relative">
+
+            <div className="mb-3 inline-flex rounded-full border border-blue-300/20 bg-blue-300/10 px-3 py-1 text-xs font-semibold text-blue-200">
+              Volunteer Workspace
+            </div>
+
+
+            <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">
+
+              Welcome back
+              {firstName
+                ? `, ${firstName}`
+                : ""}
+              .
+
+            </h1>
+
+
+            <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-300 sm:text-base">
+              Discover opportunities,
+              manage your registrations,
+              and keep track of the impact
+              you are making.
+            </p>
+
+
+            <div className="mt-6 flex flex-wrap gap-3">
+
+              <Link
+                to="/dashboard/events"
+                className="rounded-xl bg-blue-500 px-5 py-2.5 text-sm font-semibold text-white shadow transition hover:bg-blue-600"
+              >
+                Browse Events
+              </Link>
+
+
+              <Link
+                to="/dashboard/profile"
+                className="rounded-xl border border-slate-500/50 bg-slate-700/40 px-5 py-2.5 text-sm font-semibold text-slate-100 transition hover:bg-slate-700"
+              >
+                View Profile
+              </Link>
+
+            </div>
+
+          </div>
+
+        </section>
+
+
+        {/* Error */}
 
         {error && (
-          <div className="rounded-lg border border-red-300 bg-red-50 p-4">
-            <p className="text-red-700">
-              {error}
-            </p>
+
+          <div className="rounded-2xl border border-red-200 bg-red-100/60 p-4 text-sm text-red-700">
+            {error}
           </div>
+
         )}
 
-        {/* =========================
-            Loading
-        ========================== */}
+
+        {/* Loading */}
 
         {loading ? (
-          <div className="rounded-xl border bg-white p-8 text-center">
-            <p className="text-gray-600">
-              Loading dashboard...
-            </p>
-          </div>
-        ) : (
-          <>
-            {/* =========================
-                Statistics
-            ========================== */}
 
-            <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-4">
+          <div className="rounded-2xl border border-slate-300/60 bg-[#f4f7fa] p-8">
+
+            <div className="flex items-center gap-3 text-slate-500">
+
+              <div className="h-5 w-5 animate-spin rounded-full border-2 border-slate-300 border-t-blue-500" />
+
+              Loading dashboard...
+
+            </div>
+
+          </div>
+
+        ) : (
+
+          <>
+
+
+            {/* Stats */}
+
+            <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-4">
 
               <StatCard
                 title="Available Events"
-                value={events.length}
+                value={
+                  events.length
+                }
               />
 
               <StatCard
-                title="My Registrations"
-                value={registrations.length}
+                title="Active Registrations"
+                value={
+                  activeRegistrations.length
+                }
               />
 
               <StatCard
-                title="Upcoming Registrations"
-                value={upcomingRegistrations.length}
+                title="Volunteer Hours"
+                value={
+                  totalHours
+                }
               />
 
               <StatCard
                 title="Certificates"
-                value={certificates.length}
+                value={
+                  certificates.length
+                }
               />
 
             </div>
 
-            {/* =========================
-                Upcoming Events + Actions
-            ========================== */}
 
-            <div className="grid gap-6 lg:grid-cols-2">
+            {/* Main Grid */}
+
+            <div className="grid gap-6 xl:grid-cols-[1.4fr_0.8fr]">
+
 
               {/* Upcoming Events */}
 
-              <div className="rounded-xl bg-white p-6 shadow-md">
+              <section className="rounded-2xl border border-slate-300/60 bg-[#f4f7fa] p-6 shadow-[0_4px_20px_rgba(15,23,42,0.04)]">
 
-                <div className="mb-4 flex items-center justify-between">
+                <div className="flex items-center justify-between gap-4">
 
-                  <h2 className="text-xl font-semibold">
-                    Upcoming Events
-                  </h2>
+                  <div>
+
+                    <p className="text-xs font-semibold uppercase tracking-[0.16em] text-blue-600">
+                      Opportunities
+                    </p>
+
+                    <h2 className="mt-1 text-xl font-bold text-slate-900">
+                      Upcoming Events
+                    </h2>
+
+                  </div>
+
 
                   <Link
                     to="/dashboard/events"
-                    className="text-sm font-medium text-blue-600 hover:text-blue-700"
+                    className="text-sm font-semibold text-blue-600 transition hover:text-blue-800"
                   >
-                    View all
+                    View all →
                   </Link>
 
                 </div>
 
-                {upcomingEvents.length === 0 ? (
-                  <div className="rounded-lg border p-6 text-center">
-                    <p className="text-gray-500">
-                      No upcoming events available.
+
+                {upcomingEvents.length ===
+                0 ? (
+
+                  <div className="mt-6 rounded-xl border border-dashed border-slate-300 bg-[#eaf0f5] p-8 text-center">
+
+                    <p className="font-medium text-slate-600">
+                      No upcoming events
                     </p>
+
+                    <p className="mt-1 text-sm text-slate-500">
+                      New opportunities will
+                      appear here.
+                    </p>
+
                   </div>
+
                 ) : (
-                  <div className="space-y-4">
 
-                    {upcomingEvents.map((event) => (
-                      <Link
-                        key={event.id}
-                        to={`/dashboard/events/${event.id}`}
-                        className="flex items-center justify-between rounded-lg border p-3 transition hover:bg-gray-50"
-                      >
+                  <div className="mt-5 space-y-3">
 
-                        <div>
-                          <p className="font-medium">
-                            {event.title}
-                          </p>
+                    {upcomingEvents.map(
+                      (event) => (
 
-                          <p className="text-sm text-gray-500">
-                            {event.location}
-                          </p>
-                        </div>
+                        <Link
+                          key={
+                            event.id
+                          }
+                          to={`/dashboard/events/${event.id}`}
+                          className="group flex flex-col justify-between gap-3 rounded-xl border border-slate-300/60 bg-[#eaf0f5] p-4 transition hover:border-blue-300 hover:bg-blue-50/50 sm:flex-row sm:items-center"
+                        >
 
-                        <span className="text-sm font-semibold text-blue-600">
-                          {formatDate(event.start_date)}
-                        </span>
+                          <div>
 
-                      </Link>
-                    ))}
+                            <p className="font-semibold text-slate-800 transition group-hover:text-blue-700">
+                              {
+                                event.title
+                              }
+                            </p>
+
+                            <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-sm text-slate-500">
+
+                              <span>
+                                {
+                                  event.location
+                                }
+                              </span>
+
+                              <span>
+                                {
+                                  event.ngo_name
+                                }
+                              </span>
+
+                            </div>
+
+                          </div>
+
+
+                          <div className="shrink-0 rounded-lg bg-[#f4f7fa] px-3 py-2 text-sm font-bold text-blue-600">
+                            {formatDate(
+                              event.start_date,
+                            )}
+                          </div>
+
+                        </Link>
+
+                      ),
+                    )}
 
                   </div>
+
                 )}
 
-              </div>
+              </section>
+
 
               {/* Quick Actions */}
 
-              <div className="rounded-xl bg-white p-6 shadow-md">
+              <section className="rounded-2xl border border-slate-300/60 bg-[#f4f7fa] p-6 shadow-[0_4px_20px_rgba(15,23,42,0.04)]">
 
-                <h2 className="mb-4 text-xl font-semibold">
+                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-teal-600">
+                  Shortcuts
+                </p>
+
+                <h2 className="mt-1 text-xl font-bold text-slate-900">
                   Quick Actions
                 </h2>
 
-                <div className="grid gap-3">
 
-                  <Link
-                    to="/dashboard/events"
-                    className="rounded-lg bg-blue-600 px-4 py-3 font-medium text-white hover:bg-blue-700"
-                  >
-                    Browse Events
-                  </Link>
-
-                  <Link
-                    to="/dashboard/profile"
-                    className="rounded-lg bg-gray-100 px-4 py-3 font-medium text-gray-800 hover:bg-gray-200"
-                  >
-                    View Profile
-                  </Link>
+                <div className="mt-5 space-y-3">
 
                   <Link
                     to="/dashboard/registered-events"
-                    className="rounded-lg bg-gray-100 px-4 py-3 font-medium text-gray-800 hover:bg-gray-200"
+                    className="flex items-center justify-between rounded-xl border border-slate-300/60 bg-[#eaf0f5] px-4 py-3.5 text-sm font-semibold text-slate-700 transition hover:border-blue-300 hover:text-blue-700"
                   >
                     My Registrations
+                    <span>→</span>
                   </Link>
+
 
                   <Link
                     to="/dashboard/history"
-                    className="rounded-lg bg-gray-100 px-4 py-3 font-medium text-gray-800 hover:bg-gray-200"
+                    className="flex items-center justify-between rounded-xl border border-slate-300/60 bg-[#eaf0f5] px-4 py-3.5 text-sm font-semibold text-slate-700 transition hover:border-blue-300 hover:text-blue-700"
                   >
                     Volunteer History
+                    <span>→</span>
                   </Link>
+
 
                   <Link
                     to="/dashboard/certificates"
-                    className="rounded-lg bg-gray-100 px-4 py-3 font-medium text-gray-800 hover:bg-gray-200"
+                    className="flex items-center justify-between rounded-xl border border-slate-300/60 bg-[#eaf0f5] px-4 py-3.5 text-sm font-semibold text-slate-700 transition hover:border-blue-300 hover:text-blue-700"
                   >
-                    My Certificates
+                    Certificates
+                    <span>→</span>
+                  </Link>
+
+
+                  <Link
+                    to="/dashboard/notifications"
+                    className="flex items-center justify-between rounded-xl border border-slate-300/60 bg-[#eaf0f5] px-4 py-3.5 text-sm font-semibold text-slate-700 transition hover:border-blue-300 hover:text-blue-700"
+                  >
+                    Notifications
+                    <span>→</span>
                   </Link>
 
                 </div>
 
-              </div>
+              </section>
 
             </div>
 
-            {/* =========================
-                Recent Activity
-            ========================== */}
 
-            <div className="rounded-xl bg-white p-6 shadow-md">
+            {/* Recent Activity */}
 
-              <div className="mb-4 flex items-center justify-between">
+            <section className="rounded-2xl border border-slate-300/60 bg-[#f4f7fa] p-6 shadow-[0_4px_20px_rgba(15,23,42,0.04)]">
 
-                <h2 className="text-xl font-semibold">
-                  Recent Activity
-                </h2>
+              <div className="flex items-center justify-between">
+
+                <div>
+
+                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
+                    Activity
+                  </p>
+
+                  <h2 className="mt-1 text-xl font-bold text-slate-900">
+                    Recent Registrations
+                  </h2>
+
+                </div>
+
 
                 <Link
                   to="/dashboard/registered-events"
-                  className="text-sm font-medium text-blue-600 hover:text-blue-700"
+                  className="text-sm font-semibold text-blue-600 hover:text-blue-800"
                 >
-                  View registrations
+                  View all →
                 </Link>
 
               </div>
 
-              {registrations.length === 0 ? (
-                <p className="text-gray-500">
-                  No activity yet.
-                </p>
+
+              {registrations.length ===
+              0 ? (
+
+                <div className="mt-5 rounded-xl border border-dashed border-slate-300 bg-[#eaf0f5] p-7 text-center text-sm text-slate-500">
+                  You have not registered
+                  for an event yet.
+                </div>
+
               ) : (
-                <ul className="space-y-3 text-gray-700">
+
+                <div className="mt-5 divide-y divide-slate-300/50">
 
                   {registrations
-                    .slice(0, 5)
-                    .map((registration) => (
-                      <li
-                        key={registration.id}
-                        className="rounded-lg border p-3"
-                      >
+                    .slice(
+                      0,
+                      5,
+                    )
+                    .map(
+                      (
+                        registration,
+                      ) => (
 
-                        <div className="flex flex-col justify-between gap-1 sm:flex-row">
+                        <div
+                          key={
+                            registration.id
+                          }
+                          className="flex flex-col justify-between gap-3 py-4 sm:flex-row sm:items-center"
+                        >
 
-                          <span>
-                            Registered for{" "}
-                            <span className="font-medium">
-                              {registration.event_title}
-                            </span>
-                          </span>
+                          <div>
 
-                          <span className="text-sm text-gray-500">
-                            {formatDate(
-                              registration.registered_at,
-                            )}
+                            <p className="font-semibold text-slate-800">
+                              {
+                                registration.event_title
+                              }
+                            </p>
+
+                            <p className="mt-1 text-sm text-slate-500">
+                              Registered{" "}
+                              {formatDate(
+                                registration.registered_at,
+                              )}
+                            </p>
+
+                          </div>
+
+
+                          <span
+                            className={`w-fit rounded-full px-3 py-1 text-xs font-bold ${registrationColor(
+                              registration.status,
+                            )}`}
+                          >
+                            {
+                              registration.status
+                            }
                           </span>
 
                         </div>
 
-                        <p className="mt-1 text-sm text-gray-500">
-                          Status:{" "}
-                          {registration.status}
-                        </p>
+                      ),
+                    )}
 
-                      </li>
-                    ))}
+                </div>
 
-                </ul>
               )}
 
-              {completedRegistrations.length > 0 && (
-                <p className="mt-4 text-sm text-gray-500">
-                  You have completed{" "}
-                  {completedRegistrations.length}{" "}
-                  event
-                  {completedRegistrations.length !== 1
-                    ? "s"
-                    : ""}.
-                </p>
-              )}
+            </section>
 
-            </div>
           </>
+
         )}
 
       </div>
+
     </DashboardLayout>
   );
 }
