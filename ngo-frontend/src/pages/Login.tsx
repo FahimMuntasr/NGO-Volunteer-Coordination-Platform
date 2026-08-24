@@ -10,7 +10,9 @@ import {
   Navigate,
 } from "react-router-dom";
 
-import { useAuth } from "../context/useAuth";
+import {
+  useAuth,
+} from "../context/useAuth";
 
 
 export default function Login() {
@@ -26,6 +28,11 @@ export default function Login() {
       ?.accountCreated === true;
 
 
+  const passwordReset =
+    location.state
+      ?.passwordReset === true;
+
+
   const {
     login,
     isAuthenticated,
@@ -36,26 +43,35 @@ export default function Login() {
   const [
     username,
     setUsername,
-  ] = useState("");
+  ] =
+    useState("");
+
 
   const [
     password,
     setPassword,
-  ] = useState("");
+  ] =
+    useState("");
+
 
   const [
     error,
     setError,
-  ] = useState("");
+  ] =
+    useState("");
+
 
   const [
     submitting,
     setSubmitting,
-  ] = useState(false);
+  ] =
+    useState(false);
 
 
   useEffect(() => {
-    if (isAuthenticated) {
+    if (
+      isAuthenticated
+    ) {
       navigate(
         "/dashboard",
         {
@@ -69,7 +85,9 @@ export default function Login() {
   ]);
 
 
-  if (loading) {
+  if (
+    loading
+  ) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-[#eaf0f5]">
 
@@ -86,7 +104,9 @@ export default function Login() {
   }
 
 
-  if (isAuthenticated) {
+  if (
+    isAuthenticated
+  ) {
     return (
       <Navigate
         to="/dashboard"
@@ -105,11 +125,13 @@ export default function Login() {
     setError("");
     setSubmitting(true);
 
+
     try {
       await login(
         username,
         password,
       );
+
 
       navigate(
         "/dashboard",
@@ -121,12 +143,14 @@ export default function Login() {
     } catch (
       error: unknown
     ) {
+
       if (
         typeof error ===
           "object" &&
         error !== null &&
         "response" in error
       ) {
+
         const response = (
           error as {
             response?: {
@@ -137,6 +161,7 @@ export default function Login() {
           }
         ).response;
 
+
         setError(
           response?.data
             ?.detail ??
@@ -144,13 +169,19 @@ export default function Login() {
         );
 
       } else {
+
         setError(
           "Unable to connect to the server.",
         );
+
       }
 
     } finally {
-      setSubmitting(false);
+
+      setSubmitting(
+        false,
+      );
+
     }
   }
 
@@ -355,10 +386,33 @@ export default function Login() {
           )}
 
 
+          {/* Password Reset Success */}
+
+          {passwordReset && (
+
+            <div className="mt-6 flex gap-3 rounded-xl border border-emerald-300/70 bg-emerald-100/60 px-4 py-3 text-sm text-emerald-800">
+
+              <span className="font-bold">
+                ✓
+              </span>
+
+              <span>
+                Password reset successfully.
+                You can now sign in with
+                your new password.
+              </span>
+
+            </div>
+
+          )}
+
+
           {/* Form */}
 
           <form
-            onSubmit={handleSubmit}
+            onSubmit={
+              handleSubmit
+            }
             className="mt-8 space-y-5"
           >
 
@@ -378,13 +432,14 @@ export default function Login() {
               <input
                 id="username"
                 type="text"
-                value={username}
+                value={
+                  username
+                }
                 onChange={(
                   event,
                 ) =>
                   setUsername(
-                    event.target
-                      .value,
+                    event.target.value,
                   )
                 }
                 placeholder="Enter your username"
@@ -400,24 +455,37 @@ export default function Login() {
 
             <div>
 
-              <label
-                htmlFor="password"
-                className="mb-2 block text-sm font-semibold text-slate-700"
-              >
-                Password
-              </label>
+              <div className="mb-2 flex items-center justify-between">
+
+                <label
+                  htmlFor="password"
+                  className="text-sm font-semibold text-slate-700"
+                >
+                  Password
+                </label>
+
+
+                <Link
+                  to="/forgot-password"
+                  className="text-sm font-semibold text-blue-600 transition hover:text-blue-700"
+                >
+                  Forgot password?
+                </Link>
+
+              </div>
 
 
               <input
                 id="password"
                 type="password"
-                value={password}
+                value={
+                  password
+                }
                 onChange={(
                   event,
                 ) =>
                   setPassword(
-                    event.target
-                      .value,
+                    event.target.value,
                   )
                 }
                 placeholder="Enter your password"
@@ -444,7 +512,9 @@ export default function Login() {
 
             <button
               type="submit"
-              disabled={submitting}
+              disabled={
+                submitting
+              }
               className="w-full rounded-xl bg-gradient-to-r from-blue-600 to-blue-500 px-5 py-3.5 font-semibold text-white shadow-lg shadow-blue-600/15 transition hover:-translate-y-0.5 hover:from-blue-700 hover:to-blue-600 hover:shadow-xl disabled:translate-y-0 disabled:opacity-50"
             >
               {submitting

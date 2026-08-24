@@ -287,3 +287,89 @@ class CertificateAPITests(APITestCase):
             response.status_code,
             status.HTTP_404_NOT_FOUND,
         )
+        
+    def test_volunteer_can_download_own_certificate(
+        self,
+    ):
+        self.client.force_authenticate(
+            user=self.volunteer_user
+        )
+
+        response = self.client.get(
+            reverse(
+                "certificate-download",
+                args=[
+                    self.certificate.id
+                ],
+            )
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_200_OK,
+        )
+
+        self.assertEqual(
+            response[
+                "Content-Type"
+            ],
+            "application/pdf",
+        )
+
+        self.assertGreater(
+            len(response.content),
+            0,
+        )
+
+
+    def test_volunteer_cannot_download_another_certificate(
+        self,
+    ):
+        other_certificate = (
+            Certificate.objects.create(
+                volunteer=(
+                    self.other_volunteer
+                ),
+                event=self.event,
+            )
+        )
+
+        self.client.force_authenticate(
+            user=self.volunteer_user
+        )
+
+        response = self.client.get(
+            reverse(
+                "certificate-download",
+                args=[
+                    other_certificate.id
+                ],
+            )
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_404_NOT_FOUND,
+        )
+
+
+    def test_ngo_admin_cannot_download_volunteer_certificate(
+        self,
+    ):
+        self.client.force_authenticate(
+            user=self.admin
+        )
+
+        response = self.client.get(
+            reverse(
+                "certificate-download",
+                args=[
+                    self.certificate.id
+                ],
+            )
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_403_FORBIDDEN,
+        )

@@ -2366,3 +2366,414 @@ class EventBuilderTests(TestCase):
 
         self.assertEqual(event.status, "OPEN")
         self.assertEqual(event.required_skills.count(), 1)
+        
+class EventTeamPrivacyTests(APITestCase):
+
+    def setUp(self):
+        self.admin = User.objects.create_user(
+            username="team_admin",
+            password="test123",
+            role=User.Role.NGO_ADMIN,
+        )
+
+        self.coordinator = User.objects.create_user(
+            username="assigned_coordinator",
+            password="test123",
+            role=User.Role.COORDINATOR,
+        )
+
+        self.other_coordinator = User.objects.create_user(
+            username="other_coordinator",
+            password="test123",
+            role=User.Role.COORDINATOR,
+        )
+
+        self.volunteer_user = User.objects.create_user(
+            username="team_volunteer",
+            password="test123",
+            role=User.Role.VOLUNTEER,
+        )
+
+        self.donor = User.objects.create_user(
+            username="team_donor",
+            password="test123",
+            role=User.Role.DONOR,
+        )
+
+        self.volunteer, _ = (
+            VolunteerProfile.objects.get_or_create(
+                user=self.volunteer_user,
+            )
+        )
+
+        self.ngo = NGO.objects.create(
+            name="Team Privacy NGO",
+            email="teamprivacy@example.com",
+            administrator=self.admin,
+            is_verified=True,
+        )
+
+        start = (
+            timezone.now()
+            + timedelta(days=10)
+        )
+
+        end = (
+            start
+            + timedelta(hours=3)
+        )
+
+        deadline = (
+            start
+            - timedelta(days=1)
+        )
+
+        self.event = Event.objects.create(
+            ngo=self.ngo,
+            created_by=self.admin,
+            coordinator=self.coordinator,
+            title="Private Team Event",
+            description="Team privacy test.",
+            location="Dhaka",
+            start_date=start,
+            end_date=end,
+            registration_deadline=deadline,
+            volunteer_capacity=20,
+            status=Event.Status.OPEN,
+        )
+
+        self.team = Team.objects.create(
+            event=self.event,
+            name="Logistics Team",
+        )
+
+        TeamMembership.objects.create(
+            team=self.team,
+            volunteer=self.volunteer,
+            assigned_task="Manage supplies",
+        )
+
+    def test_ngo_admin_can_view_event_teams(self):
+        self.client.force_authenticate(
+            user=self.admin
+        )
+
+        response = self.client.get(
+            reverse(
+                "event-teams",
+                args=[self.event.id],
+            )
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_200_OK,
+        )
+
+        self.assertEqual(
+            len(response.data),
+            1,
+        )
+
+        self.assertEqual(
+            response.data[0]["name"],
+            "Logistics Team",
+        )
+
+    def test_assigned_coordinator_can_view_event_teams(
+        self,
+    ):
+        self.client.force_authenticate(
+            user=self.coordinator
+        )
+
+        response = self.client.get(
+            reverse(
+                "event-teams",
+                args=[self.event.id],
+            )
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_200_OK,
+        )
+
+    def test_unassigned_coordinator_cannot_view_event_teams(
+        self,
+    ):
+        self.client.force_authenticate(
+            user=self.other_coordinator
+        )
+
+        response = self.client.get(
+            reverse(
+                "event-teams",
+                args=[self.event.id],
+            )
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_403_FORBIDDEN,
+        )
+
+    def test_volunteer_cannot_view_event_teams(self):
+        self.client.force_authenticate(
+            user=self.volunteer_user
+        )
+
+        response = self.client.get(
+            reverse(
+                "event-teams",
+                args=[self.event.id],
+            )
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_403_FORBIDDEN,
+        )
+
+    def test_donor_cannot_view_event_teams(self):
+        self.client.force_authenticate(
+            user=self.donor
+        )
+
+        response = self.client.get(
+            reverse(
+                "event-teams",
+                args=[self.event.id],
+            )
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_403_FORBIDDEN,
+        )
+        
+class EventUpdateLockTests(
+    APITestCase
+):
+
+    def setUp(self):
+        self.admin = (
+            User.objects.create_user(
+                username="update_admin",
+                password="test123",
+                role=User.Role.NGO_ADMIN,
+            )
+        )
+
+        self.other_admin = (
+            User.objects.create_user(
+                username="update_other_admin",
+                password="test123",
+                role=User.Role.NGO_ADMIN,
+            )
+        )
+
+        self.ngo = (
+            NGO.objects.create(
+                name="Update Test NGO",
+                email="update@example.com",
+                administrator=self.admin,
+                is_verified=True,
+            )
+        )
+
+        start = (
+            timezone.now()
+            + timedelta(days=10)
+        )
+
+        end = (
+            start
+            + timedelta(hours=3)
+        )
+
+        deadline = (
+            start
+            - timedelta(days=1)
+        )
+
+        self.event = (
+            Event.objects.create(
+                ngo=self.ngo,
+                created_by=self.admin,
+                title="Original Event",
+                description=(
+                    "Original description."
+                ),
+                location="Dhaka",
+                start_date=start,
+                end_date=end,
+                registration_deadline=(
+                    deadline
+                ),
+                volunteer_capacity=20,
+                status=Event.Status.DRAFT,
+            )
+        )
+
+    def test_admin_can_edit_draft_event(
+        self,
+    ):
+        self.client.force_authenticate(
+            user=self.admin
+        )
+
+        response = self.client.patch(
+            reverse(
+                "event-update",
+                args=[
+                    self.event.id
+                ],
+            ),
+            {
+                "title": (
+                    "Updated Event"
+                )
+            },
+            format="json",
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_200_OK,
+        )
+
+        self.event.refresh_from_db()
+
+        self.assertEqual(
+            self.event.title,
+            "Updated Event",
+        )
+
+    def test_completed_event_cannot_be_edited(
+        self,
+    ):
+        self.event.status = (
+            Event.Status.COMPLETED
+        )
+
+        self.event.save(
+            update_fields=[
+                "status"
+            ]
+        )
+
+        original_title = (
+            self.event.title
+        )
+
+        self.client.force_authenticate(
+            user=self.admin
+        )
+
+        response = self.client.patch(
+            reverse(
+                "event-update",
+                args=[
+                    self.event.id
+                ],
+            ),
+            {
+                "title": (
+                    "Should Not Change"
+                )
+            },
+            format="json",
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_400_BAD_REQUEST,
+        )
+
+        self.event.refresh_from_db()
+
+        self.assertEqual(
+            self.event.title,
+            original_title,
+        )
+
+    def test_cancelled_event_cannot_be_edited(
+        self,
+    ):
+        self.event.status = (
+            Event.Status.CANCELLED
+        )
+
+        self.event.save(
+            update_fields=[
+                "status"
+            ]
+        )
+
+        original_location = (
+            self.event.location
+        )
+
+        self.client.force_authenticate(
+            user=self.admin
+        )
+
+        response = self.client.patch(
+            reverse(
+                "event-update",
+                args=[
+                    self.event.id
+                ],
+            ),
+            {
+                "location": (
+                    "Different Location"
+                )
+            },
+            format="json",
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_400_BAD_REQUEST,
+        )
+
+        self.event.refresh_from_db()
+
+        self.assertEqual(
+            self.event.location,
+            original_location,
+        )
+
+    def test_wrong_admin_still_cannot_edit_event(
+        self,
+    ):
+        self.client.force_authenticate(
+            user=self.other_admin
+        )
+
+        response = self.client.patch(
+            reverse(
+                "event-update",
+                args=[
+                    self.event.id
+                ],
+            ),
+            {
+                "title": "Illegal Edit"
+            },
+            format="json",
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_403_FORBIDDEN,
+        )
+
+        self.event.refresh_from_db()
+
+        self.assertEqual(
+            self.event.title,
+            "Original Event",
+        )

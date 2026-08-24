@@ -135,32 +135,77 @@ class EventCreateView(CreateAPIView):
 
 
 class EventUpdateView(UpdateAPIView):
-    queryset = Event.objects.select_related("ngo")
-    serializer_class = EventUpdateSerializer
-    permission_classes = [IsAuthenticated]
+    queryset = Event.objects.select_related(
+        "ngo"
+    )
+
+    serializer_class = (
+        EventUpdateSerializer
+    )
+
+    permission_classes = [
+        IsAuthenticated
+    ]
 
     def get_object(self):
-        event = super().get_object()
+        event = (
+            super().get_object()
+        )
 
+        # Only the NGO administrator
+        # who owns this event may edit it.
         if not user_can_manage_event(
             self.request.user,
             event,
         ):
             raise PermissionDenied(
-                "Only this NGO's administrator can edit this event."
+                (
+                    "Only this NGO's "
+                    "administrator can "
+                    "edit this event."
+                )
+            )
+
+        # Completed and cancelled events
+        # are final and must not change.
+        if event.status in [
+            Event.Status.COMPLETED,
+            Event.Status.CANCELLED,
+        ]:
+            raise ValidationError(
+                {
+                    "detail": (
+                        "Completed or cancelled "
+                        "events cannot be edited."
+                    )
+                }
             )
 
         return event
-    
-    def perform_update(self, serializer):
-        previous_status = serializer.instance.status
-        event = serializer.save()
+
+    def perform_update(
+        self,
+        serializer,
+    ):
+        previous_status = (
+            serializer.instance.status
+        )
+
+        event = (
+            serializer.save()
+        )
 
         if (
-            previous_status != Event.Status.OPEN
-            and event.status == Event.Status.OPEN
+            previous_status
+            != Event.Status.OPEN
+            and event.status
+            == Event.Status.OPEN
         ):
-            notification_subject.notify(EventPublished(event))
+            notification_subject.notify(
+                EventPublished(
+                    event
+                )
+            )
 
 class EventRegistrationView(APIView):
     permission_classes = [IsAuthenticated]
@@ -434,49 +479,87 @@ class EventTeamListCreateView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request, event_id):
-        proxy = ProxyEventService()
-
         event = get_object_or_404(
-            proxy.get_events(request.user),
+            Event.objects.select_related(
+                "ngo",
+                "coordinator",
+            ),
             pk=event_id,
         )
 
+        if not user_can_coordinate_event(
+            request.user,
+            event,
+        ):
+            return Response(
+                {
+                    "detail": (
+                        "You do not have permission "
+                        "to view teams for this event."
+                    )
+                },
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
         teams = (
             event.teams
-            .select_related("leader__user")
-            .prefetch_related("memberships__volunteer__user")
+            .select_related(
+                "leader__user"
+            )
+            .prefetch_related(
+                "memberships__volunteer__user"
+            )
+            .order_by("id")
         )
 
         return Response(
-            TeamSerializer(teams, many=True).data,
+            TeamSerializer(
+                teams,
+                many=True,
+            ).data,
             status=status.HTTP_200_OK,
         )
 
     def post(self, request, event_id):
         event = get_object_or_404(
-            Event.objects.select_related("ngo"),
+            Event.objects.select_related(
+                "ngo",
+                "coordinator",
+            ),
             pk=event_id,
         )
 
-        if not user_can_coordinate_event(request.user, event):
+        if not user_can_coordinate_event(
+            request.user,
+            event,
+        ):
             return Response(
-                {"detail": "You cannot create teams for this event."},
+                {
+                    "detail": (
+                        "You cannot create teams "
+                        "for this event."
+                    )
+                },
                 status=status.HTTP_403_FORBIDDEN,
             )
 
-        serializer = TeamSerializer(data=request.data)
+        serializer = TeamSerializer(
+            data=request.data
+        )
 
-        if serializer.is_valid():
-            team = serializer.save(event=event)
+        serializer.is_valid(
+            raise_exception=True
+        )
 
-            return Response(
-                TeamSerializer(team).data,
-                status=status.HTTP_201_CREATED,
-            )
+        team = serializer.save(
+            event=event
+        )
 
         return Response(
-            serializer.errors,
-            status=status.HTTP_400_BAD_REQUEST,
+            TeamSerializer(
+                team
+            ).data,
+            status=status.HTTP_201_CREATED,
         )
 
 class AddTeamMemberView(APIView):

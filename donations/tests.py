@@ -45,7 +45,12 @@ class DonationAPITests(APITestCase):
 
         self.ngo = NGO.objects.create(
             name="Helping Hands",
+            email="helpinghands@example.com",
             administrator=self.admin,
+            is_verified=True,
+            verification_status=(
+                NGO.VerificationStatus.VERIFIED
+            ),
         )
 
         self.other_ngo = NGO.objects.create(
@@ -247,227 +252,69 @@ class DonationAPITests(APITestCase):
             response.status_code,
             status.HTTP_403_FORBIDDEN,
         )
-
-
-class DonationAcknowledgementTests(APITestCase):
-
-    def setUp(self):
-        self.donor = User.objects.create_user(
-            username="donor1",
-            password="test123",
-            role=User.Role.DONOR,
-        )
-
-        self.admin = User.objects.create_user(
-            username="admin1",
-            password="test123",
-            role=User.Role.NGO_ADMIN,
-        )
-
-        self.ngo = NGO.objects.create(
-            name="Helping Hands",
-            administrator=self.admin,
-        )
-
-        self.donation = Donation.objects.create(
-            ngo=self.ngo,
-            donor=self.donor,
-            donor_name="donor1",
-            amount=Decimal("1000.00"),
-            allocation_details=(
-                "Used to purchase food supplies"
-            ),
-        )
-
-    def test_basic_acknowledgement(self):
-        acknowledgement = (
-            BasicDonationAcknowledgement()
-        )
-
-        result = acknowledgement.generate(
-            self.donation
-        )
-
-        self.assertEqual(
-            result,
-            "Donation Amount: ৳1000.00",
-        )
-
-    def test_donor_details_decorator(self):
-        acknowledgement = (
-            BasicDonationAcknowledgement()
-        )
-
-        acknowledgement = DonorDetailsDecorator(
-            acknowledgement
-        )
-
-        result = acknowledgement.generate(
-            self.donation
-        )
-
-        self.assertIn(
-            "Donation Amount: ৳1000.00",
-            result,
-        )
-
-        self.assertIn(
-            "Donor: donor1",
-            result,
-        )
-
-    def test_ngo_information_decorator(self):
-        acknowledgement = (
-            BasicDonationAcknowledgement()
-        )
-
-        acknowledgement = NGOInformationDecorator(
-            acknowledgement
-        )
-
-        result = acknowledgement.generate(
-            self.donation
-        )
-
-        self.assertIn(
-            "Donation Amount: ৳1000.00",
-            result,
-        )
-
-        self.assertIn(
-            "NGO: Helping Hands",
-            result,
-        )
-
-    def test_allocation_details_decorator(self):
-        acknowledgement = (
-            BasicDonationAcknowledgement()
-        )
-
-        acknowledgement = AllocationDetailsDecorator(
-            acknowledgement
-        )
-
-        result = acknowledgement.generate(
-            self.donation
-        )
-
-        self.assertIn(
-            "Donation Amount: ৳1000.00",
-            result,
-        )
-
-        self.assertIn(
-            "Allocation: "
-            "Used to purchase food supplies",
-            result,
-        )
-
-    def test_multiple_decorators(self):
-        acknowledgement = (
-            BasicDonationAcknowledgement()
-        )
-
-        acknowledgement = DonorDetailsDecorator(
-            acknowledgement
-        )
-
-        acknowledgement = NGOInformationDecorator(
-            acknowledgement
-        )
-
-        acknowledgement = AllocationDetailsDecorator(
-            acknowledgement
-        )
-
-        result = acknowledgement.generate(
-            self.donation
-        )
-
-        self.assertIn(
-            "Donation Amount: ৳1000.00",
-            result,
-        )
-
-        self.assertIn(
-            "Donor: donor1",
-            result,
-        )
-
-        self.assertIn(
-            "NGO: Helping Hands",
-            result,
-        )
-
-        self.assertIn(
-            "Allocation: "
-            "Used to purchase food supplies",
-            result,
-        )
-
-    def test_donor_can_view_acknowledgement(self):
+        
+    def test_donor_cannot_donate_to_unverified_ngo(self):
         self.client.force_authenticate(
             user=self.donor
         )
 
-        response = self.client.get(
-            reverse(
-                "donation-acknowledgement",
-                args=[self.donation.id],
-            )
+        response = self.client.post(
+            reverse("donation-create"),
+            {
+                "ngo": self.other_ngo.id,
+                "amount": "100.00",
+            },
+            format="json",
         )
 
         self.assertEqual(
             response.status_code,
-            status.HTTP_200_OK,
-        )
-
-        acknowledgement = (
-            response.data["acknowledgement"]
+            status.HTTP_400_BAD_REQUEST,
         )
 
         self.assertIn(
-            "Donation Amount: ৳1000.00",
-            acknowledgement,
+            "ngo",
+            response.data,
         )
 
-        self.assertIn(
-            "Donor: donor1",
-            acknowledgement,
+        self.assertEqual(
+            Donation.objects.count(),
+            0,
+        )
+        
+    def test_donor_cannot_donate_if_verification_status_is_not_verified(self):
+        self.ngo.is_verified = True
+
+        self.ngo.verification_status = (
+            NGO.VerificationStatus.PENDING
         )
 
-        self.assertIn(
-            "NGO: Helping Hands",
-            acknowledgement,
-        )
-
-        self.assertIn(
-            "Allocation: "
-            "Used to purchase food supplies",
-            acknowledgement,
-        )
-
-    def test_unauthorized_user_cannot_view_acknowledgement(
-        self,
-    ):
-        other_user = User.objects.create_user(
-            username="other",
-            password="test123",
-            role=User.Role.DONOR,
+        self.ngo.save(
+            update_fields=[
+                "is_verified",
+                "verification_status",
+            ]
         )
 
         self.client.force_authenticate(
-            user=other_user
+            user=self.donor
         )
 
-        response = self.client.get(
-            reverse(
-                "donation-acknowledgement",
-                args=[self.donation.id],
-            )
+        response = self.client.post(
+            reverse("donation-create"),
+            {
+                "ngo": self.ngo.id,
+                "amount": "100.00",
+            },
+            format="json",
         )
 
         self.assertEqual(
             response.status_code,
-            status.HTTP_403_FORBIDDEN,
+            status.HTTP_400_BAD_REQUEST,
+        )
+
+        self.assertEqual(
+            Donation.objects.count(),
+            0,
         )

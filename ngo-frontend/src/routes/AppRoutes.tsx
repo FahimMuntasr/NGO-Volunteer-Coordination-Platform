@@ -16,6 +16,8 @@ import Login from "../pages/Login";
 import Register from "../pages/Register";
 import NotFound from "../pages/NotFound";
 import CertificateVerification from "../pages/CertificateVerification";
+import ForgotPassword from "../pages/ForgotPassword";
+import ResetPassword from "../pages/ResetPassword";
 
 
 // ================================
@@ -99,6 +101,21 @@ export default function AppRoutes() {
           path="/register"
           element={
             <Register />
+          }
+        />
+
+        <Route
+          path="/forgot-password"
+          element={
+            <ForgotPassword />
+          }
+        />
+
+
+        <Route
+          path="/reset-password/:uid/:token"
+          element={
+            <ResetPassword />
           }
         />
 

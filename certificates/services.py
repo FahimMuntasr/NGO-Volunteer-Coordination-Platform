@@ -6,45 +6,49 @@ from .models import Certificate
 
 
 class CertificateService:
-    
+
     @staticmethod
     def generate_certificate(registration):
-        certificate, created = Certificate.objects.get_or_create(
-            volunteer=registration.volunteer,
-            event=registration.event,
+        """
+        Create the persistent certificate record.
+
+        The PDF itself is generated on demand instead
+        of being permanently stored on the server's
+        local filesystem.
+        """
+
+        certificate, _ = (
+            Certificate.objects.get_or_create(
+                volunteer=registration.volunteer,
+                event=registration.event,
+            )
         )
 
-        # Prevents duplicate certificate generation
-        if certificate.file:
-            return certificate
+        return certificate
 
-        # Concrete Creator
-        creator = ParticipationCertificateCreator()
+    @staticmethod
+    def generate_certificate_document(
+        certificate,
+    ):
+        """
+        Generate the certificate PDF in memory.
 
-        # The client asks the creator to create the document
-        pdf_file = creator.create_document(
+        Uses the existing Factory Method implementation.
+        """
+
+        creator = (
+            ParticipationCertificateCreator()
+        )
+
+        return creator.create_document(
             {
-                "volunteer": registration.volunteer,
-                "event": registration.event,
+                "volunteer": certificate.volunteer,
+                "event": certificate.event,
                 "verification_code": (
                     certificate.verification_code
                 ),
             }
         )
-
-        filename = (
-            f"certificate_"
-            f"{registration.event.id}_"
-            f"{registration.volunteer.id}.pdf"
-        )
-
-        certificate.file.save(
-            filename,
-            pdf_file,
-            save=True,
-        )
-
-        return certificate
 
 
 class AttendanceReportService:
@@ -53,12 +57,15 @@ class AttendanceReportService:
     def generate_report(event):
         registrations = (
             event.registrations
-            .select_related("volunteer__user")
+            .select_related(
+                "volunteer__user"
+            )
             .all()
         )
 
-        # Different Concrete Creator
-        creator = AttendanceReportCreator()
+        creator = (
+            AttendanceReportCreator()
+        )
 
         return creator.create_document(
             {
