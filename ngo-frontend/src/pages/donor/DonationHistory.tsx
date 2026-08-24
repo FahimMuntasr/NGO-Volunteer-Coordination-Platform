@@ -10,6 +10,9 @@ import {
   type Donation,
 } from "../../api/donations";
 
+import {
+  getDonationAcknowledgement,
+} from "../../api/donationAcknowledgement";
 
 export default function DonationHistory() {
   const [
@@ -30,6 +33,43 @@ export default function DonationHistory() {
   ] =
     useState("");
 
+  // Stores generated acknowledgement
+  // for each donation.
+  const [
+    acknowledgements,
+    setAcknowledgements,
+  ] =
+    useState<
+      Record<number, string>
+    >({});
+
+  // Tracks which acknowledgement
+  // is currently being generated.
+  const [
+    acknowledgementLoading,
+    setAcknowledgementLoading,
+  ] =
+    useState<number | null>(
+      null,
+    );
+
+  // Stores which decorators are enabled
+  // for each donation.
+  const [
+    decoratorOptions,
+    setDecoratorOptions,
+  ] =
+    useState<
+      Record<
+        number,
+        {
+          donor: boolean;
+          ngo: boolean;
+          allocation: boolean;
+        }
+      >
+    >({});
+
 
   useEffect(() => {
     getMyDonations()
@@ -47,6 +87,89 @@ export default function DonationHistory() {
         ),
       );
   }, []);
+
+
+  /*
+   * DECORATOR PATTERN DEMO
+   */
+  async function handleViewAcknowledgement(
+    donationId: number,
+  ) {
+    try {
+      setAcknowledgementLoading(
+        donationId,
+      );
+
+      setError("");
+
+      const options =
+        decoratorOptions[
+          donationId
+        ] ?? {
+          donor: true,
+          ngo: true,
+          allocation: true,
+        };
+
+      const response =
+        await getDonationAcknowledgement(
+          donationId,
+          options,
+        );
+
+      setAcknowledgements(
+        (current) => ({
+          ...current,
+          [donationId]:
+            response.acknowledgement,
+        }),
+      );
+
+    } catch {
+      setError(
+        "Unable to generate donation acknowledgement.",
+      );
+
+    } finally {
+      setAcknowledgementLoading(
+        null,
+      );
+    }
+  }
+
+
+  function toggleDecorator(
+    donationId: number,
+    decorator:
+      | "donor"
+      | "ngo"
+      | "allocation",
+  ) {
+    setDecoratorOptions(
+      (current) => {
+
+        const existing =
+          current[donationId] ?? {
+            donor: true,
+            ngo: true,
+            allocation: true,
+          };
+
+        return {
+          ...current,
+
+          [donationId]: {
+            ...existing,
+
+            [decorator]:
+              !existing[
+                decorator
+              ],
+          },
+        };
+      },
+    );
+  }
 
 
   const total =
@@ -210,6 +333,167 @@ export default function DonationHistory() {
                     </div>
 
                   </div>
+
+
+                  {/* =================================
+                      DECORATOR OPTIONS
+                  ================================= */}
+
+                  <div className="mt-5 rounded-2xl border border-slate-200 bg-white p-5">
+
+                    <p className="text-xs font-semibold uppercase tracking-[0.14em] text-blue-600">
+                      Decorator Options
+                    </p>
+
+                    <p className="mt-1 text-sm text-slate-500">
+                      Choose which information should
+                      be added to the acknowledgement.
+                    </p>
+
+
+                    <div className="mt-4 flex flex-wrap gap-3">
+
+                      {(
+                        [
+                          [
+                            "donor",
+                            "Donor Details",
+                          ],
+                          [
+                            "ngo",
+                            "NGO Information",
+                          ],
+                          [
+                            "allocation",
+                            "Allocation Details",
+                          ],
+                        ] as const
+                      ).map(
+                        ([
+                          key,
+                          label,
+                        ]) => {
+
+                          const options =
+                            decoratorOptions[
+                              donation.id
+                            ] ?? {
+                              donor: true,
+                              ngo: true,
+                              allocation: true,
+                            };
+
+                          const enabled =
+                            options[
+                              key
+                            ];
+
+                          return (
+                            <button
+                              key={key}
+                              type="button"
+                              onClick={() =>
+                                toggleDecorator(
+                                  donation.id,
+                                  key,
+                                )
+                              }
+                              className={`rounded-xl px-4 py-2 font-semibold transition ${
+                                enabled
+                                  ? "bg-blue-600 text-white"
+                                  : "bg-slate-200 text-slate-600"
+                              }`}
+                            >
+                              {enabled
+                                ? "✓ "
+                                : ""}
+                              {label}
+                            </button>
+                          );
+                        },
+                      )}
+
+                    </div>
+
+                  </div>
+
+
+                  <div className="mt-5">
+
+                    <button
+                      type="button"
+
+                      disabled={
+                        acknowledgementLoading ===
+                        donation.id
+                      }
+
+                      onClick={() =>
+                        handleViewAcknowledgement(
+                          donation.id,
+                        )
+                      }
+
+                      className="rounded-xl bg-blue-600 px-5 py-2.5 font-semibold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+
+                      {acknowledgementLoading ===
+                      donation.id
+
+                        ? "Generating..."
+
+                        : "View Acknowledgement"}
+
+                    </button>
+
+                  </div>
+
+
+                  {/* =================================
+                      GENERATED ACKNOWLEDGEMENT
+                  ================================= */}
+
+                  {acknowledgements[
+                    donation.id
+                  ] && (
+
+                    <div className="mt-5 rounded-2xl border border-blue-200 bg-blue-50 p-5">
+
+                      <div className="flex items-center justify-between">
+
+                        <div>
+
+                          <p className="text-xs font-semibold uppercase tracking-[0.14em] text-blue-600">
+
+                            Decorator Pattern
+
+                          </p>
+
+
+                          <h3 className="mt-1 text-lg font-bold text-slate-900">
+
+                            Generated Acknowledgement
+
+                          </h3>
+
+                        </div>
+
+                      </div>
+
+
+                      <pre className="mt-4 whitespace-pre-wrap rounded-xl bg-white p-4 text-sm leading-6 text-slate-700">
+
+                        {
+                          acknowledgements[
+                            donation.id
+                          ]
+                        }
+
+                      </pre>
+
+                    </div>
+
+                  )}
 
                 </article>
 
