@@ -468,3 +468,47 @@ class MyRegistrationsTests(APITestCase):
             response.status_code,
             status.HTTP_403_FORBIDDEN,
         )
+        
+    def test_my_registrations_returns_frontend_fields(self):
+        self.client.force_authenticate(
+            user=self.volunteer_user
+        )
+
+        response = self.client.get(
+            reverse("volunteer-registrations")
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_200_OK,
+        )
+
+        self.assertEqual(
+            len(response.data),
+            2,
+        )
+
+        required_fields = {
+            "id",
+            "event",
+            "event_title",
+            "volunteer",
+            "volunteer_username",
+            "status",
+            "registered_at",
+            "approved_at",
+            "attendance_status",
+            "hours_earned",
+        }
+
+        for registration in response.data:
+            self.assertTrue(
+                required_fields.issubset(
+                    registration.keys()
+                )
+            )
+
+            self.assertEqual(
+                registration["volunteer_username"],
+                "registration_volunteer",
+            )

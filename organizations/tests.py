@@ -517,3 +517,158 @@ class NGOVerificationTests(APITestCase):
             response.data["message"],
             "NGO registration has expired.",
         )
+        
+class NGOProfileVerificationProtectionTests(
+    APITestCase
+):
+
+    def setUp(self):
+        self.admin = User.objects.create_user(
+            username="profile_admin",
+            password="test123",
+            role=User.Role.NGO_ADMIN,
+        )
+
+        self.registry_entry = (
+            VerifiedNGORegistry.objects.create(
+                name="Helping Hands",
+                registration_number="12345",
+                address="Dhaka",
+            )
+        )
+
+        self.ngo = NGO.objects.create(
+            name="Helping Hands",
+            email="helpinghands@example.com",
+            administrator=self.admin,
+            registration_number="12345",
+            is_verified=True,
+            verification_status=(
+                NGO.VerificationStatus.VERIFIED
+            ),
+            registry_entry=self.registry_entry,
+            verified_at=timezone.now(),
+        )
+
+    def test_verified_ngo_name_change_resets_verification(
+        self,
+    ):
+        self.client.force_authenticate(
+            user=self.admin
+        )
+
+        response = self.client.patch(
+            reverse("ngo-profile"),
+            {
+                "name": "Different Organization",
+            },
+            format="json",
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_200_OK,
+        )
+
+        self.ngo.refresh_from_db()
+
+        self.assertEqual(
+            self.ngo.name,
+            "Different Organization",
+        )
+
+        self.assertFalse(
+            self.ngo.is_verified
+        )
+
+        self.assertEqual(
+            self.ngo.verification_status,
+            NGO.VerificationStatus.PENDING,
+        )
+
+        self.assertIsNone(
+            self.ngo.registry_entry
+        )
+
+        self.assertIsNone(
+            self.ngo.verified_at
+        )
+
+    def test_same_normalized_name_keeps_verification(
+        self,
+    ):
+        self.client.force_authenticate(
+            user=self.admin
+        )
+
+        response = self.client.patch(
+            reverse("ngo-profile"),
+            {
+                "name": "  HELPING   HANDS  ",
+            },
+            format="json",
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_200_OK,
+        )
+
+        self.ngo.refresh_from_db()
+
+        self.assertTrue(
+            self.ngo.is_verified
+        )
+
+        self.assertEqual(
+            self.ngo.verification_status,
+            NGO.VerificationStatus.VERIFIED,
+        )
+
+        self.assertEqual(
+            self.ngo.registry_entry,
+            self.registry_entry,
+        )
+
+        self.assertIsNotNone(
+            self.ngo.verified_at
+        )
+
+    def test_editing_non_identity_fields_keeps_verification(
+        self,
+    ):
+        self.client.force_authenticate(
+            user=self.admin
+        )
+
+        response = self.client.patch(
+            reverse("ngo-profile"),
+            {
+                "address": "New Dhaka Address",
+                "description": (
+                    "Updated NGO description."
+                ),
+            },
+            format="json",
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_200_OK,
+        )
+
+        self.ngo.refresh_from_db()
+
+        self.assertEqual(
+            self.ngo.address,
+            "New Dhaka Address",
+        )
+
+        self.assertTrue(
+            self.ngo.is_verified
+        )
+
+        self.assertEqual(
+            self.ngo.verification_status,
+            NGO.VerificationStatus.VERIFIED,
+        )

@@ -1,5 +1,6 @@
 import api from "../services/api";
 
+
 export type Certificate = {
   id: number;
   volunteer: number;
@@ -11,6 +12,7 @@ export type Certificate = {
   file: string | null;
 };
 
+
 export type CertificateVerification = {
   valid: boolean;
   verification_code: string;
@@ -19,15 +21,32 @@ export type CertificateVerification = {
   issued_at: string;
 };
 
+
 export async function getMyCertificates(): Promise<
   Certificate[]
 > {
-  const response = await api.get<Certificate[]>(
-    "/api/certificates/my/",
+  const response =
+    await api.get<Certificate[]>(
+      "/api/certificates/my/",
+    );
+
+  return response.data;
+}
+
+
+export async function downloadCertificate(
+  certificateId: number,
+): Promise<Blob> {
+  const response = await api.get(
+    `/api/certificates/${certificateId}/download/`,
+    {
+      responseType: "blob",
+    },
   );
 
   return response.data;
 }
+
 
 export async function verifyCertificate(
   verificationCode: string,
@@ -39,6 +58,7 @@ export async function verifyCertificate(
 
   return response.data;
 }
+
 
 export async function downloadAttendanceReport(
   eventId: number,

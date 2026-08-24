@@ -11,6 +11,7 @@ from .serializers import (
     VolunteerHistorySerializer,
     VolunteerProfileSerializer,
 )
+from events.serializers import RegistrationSerializer
 from rest_framework.exceptions import ValidationError
 
 from .ranking import (
@@ -185,7 +186,7 @@ class MyRegistrationsView(APIView):
             .order_by("-registered_at")
         )
 
-        serializer = VolunteerHistorySerializer(
+        serializer = RegistrationSerializer(
             registrations,
             many=True,
         )

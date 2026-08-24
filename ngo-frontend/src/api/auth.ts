@@ -6,6 +6,7 @@ import type {
   UserRole,
 } from "../types/auth";
 
+
 export async function login(
   username: string,
   password: string,
@@ -22,6 +23,7 @@ export async function login(
   return response.data;
 }
 
+
 export async function getCurrentUser():
 Promise<User> {
   const response =
@@ -31,6 +33,7 @@ Promise<User> {
 
   return response.data;
 }
+
 
 export type RegisterRequest = {
   username: string;
@@ -61,6 +64,7 @@ export type RegisterRequest = {
   ngo_registration_number?: string;
 };
 
+
 export async function registerAccount(
   data: RegisterRequest,
 ): Promise<LoginResponse> {
@@ -68,6 +72,43 @@ export async function registerAccount(
     await api.post<LoginResponse>(
       "/api/auth/register/",
       data,
+    );
+
+  return response.data;
+}
+
+
+export type PasswordResetResponse = {
+  detail: string;
+};
+
+
+export async function requestPasswordReset(
+  email: string,
+): Promise<PasswordResetResponse> {
+  const response =
+    await api.post<PasswordResetResponse>(
+      "/api/auth/password-reset/",
+      {
+        email,
+      },
+    );
+
+  return response.data;
+}
+
+
+export async function confirmPasswordReset(
+  uid: string,
+  token: string,
+  newPassword: string,
+): Promise<PasswordResetResponse> {
+  const response =
+    await api.post<PasswordResetResponse>(
+      `/api/auth/password-reset/confirm/${uid}/${token}/`,
+      {
+        new_password: newPassword,
+      },
     );
 
   return response.data;

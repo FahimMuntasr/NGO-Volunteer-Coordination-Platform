@@ -38,7 +38,12 @@ class DonationAPITests(APITestCase):
 
         self.ngo = NGO.objects.create(
             name="Helping Hands",
+            email="helpinghands@example.com",
             administrator=self.admin,
+            is_verified=True,
+            verification_status=(
+                NGO.VerificationStatus.VERIFIED
+            ),
         )
 
         self.other_ngo = NGO.objects.create(
@@ -218,4 +223,70 @@ class DonationAPITests(APITestCase):
         self.assertEqual(
             response.status_code,
             status.HTTP_403_FORBIDDEN,
+        )
+        
+    def test_donor_cannot_donate_to_unverified_ngo(self):
+        self.client.force_authenticate(
+            user=self.donor
+        )
+
+        response = self.client.post(
+            reverse("donation-create"),
+            {
+                "ngo": self.other_ngo.id,
+                "amount": "100.00",
+            },
+            format="json",
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_400_BAD_REQUEST,
+        )
+
+        self.assertIn(
+            "ngo",
+            response.data,
+        )
+
+        self.assertEqual(
+            Donation.objects.count(),
+            0,
+        )
+        
+    def test_donor_cannot_donate_if_verification_status_is_not_verified(self):
+        self.ngo.is_verified = True
+
+        self.ngo.verification_status = (
+            NGO.VerificationStatus.PENDING
+        )
+
+        self.ngo.save(
+            update_fields=[
+                "is_verified",
+                "verification_status",
+            ]
+        )
+
+        self.client.force_authenticate(
+            user=self.donor
+        )
+
+        response = self.client.post(
+            reverse("donation-create"),
+            {
+                "ngo": self.ngo.id,
+                "amount": "100.00",
+            },
+            format="json",
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_400_BAD_REQUEST,
+        )
+
+        self.assertEqual(
+            Donation.objects.count(),
+            0,
         )

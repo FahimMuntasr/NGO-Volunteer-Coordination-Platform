@@ -3,6 +3,20 @@ from rest_framework import serializers
 from .models import NGO
 
 
+def normalize_ngo_name(name):
+    """
+    Normalize NGO names the same way
+    verification compares them.
+
+    This prevents harmless changes such as
+    capitalization or extra spaces from
+    unnecessarily removing verification.
+    """
+    return " ".join(
+        name.strip().casefold().split()
+    )
+
+
 class NGOProfileSerializer(
     serializers.ModelSerializer
 ):
@@ -73,6 +87,31 @@ class NGOProfileSerializer(
         instance,
         validated_data,
     ):
+        # =========================
+        # Detect NGO name change
+        # =========================
+
+        old_name = normalize_ngo_name(
+            instance.name
+        )
+
+        new_name_value = validated_data.get(
+            "name",
+            instance.name,
+        )
+
+        new_name = normalize_ngo_name(
+            new_name_value
+        )
+
+        ngo_name_changed = (
+            old_name != new_name
+        )
+
+        # =========================
+        # Update administrator
+        # =========================
+
         administrator_data = (
             validated_data.pop(
                 "administrator",
@@ -95,6 +134,10 @@ class NGOProfileSerializer(
 
         administrator.save()
 
+        # =========================
+        # Update NGO fields
+        # =========================
+
         for field, value in (
             validated_data.items()
         ):
@@ -103,6 +146,28 @@ class NGOProfileSerializer(
                 field,
                 value,
             )
+
+        # =========================
+        # Verification protection
+        # =========================
+
+        if (
+            ngo_name_changed
+            and (
+                instance.is_verified
+                or instance.verification_status
+                == NGO.VerificationStatus.VERIFIED
+            )
+        ):
+            instance.is_verified = False
+
+            instance.verification_status = (
+                NGO.VerificationStatus.PENDING
+            )
+
+            instance.registry_entry = None
+
+            instance.verified_at = None
 
         instance.save()
 
