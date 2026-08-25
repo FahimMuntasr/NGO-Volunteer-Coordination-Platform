@@ -1,25 +1,19 @@
 from abc import ABC, abstractmethod
 
-from events.models import Registration
-from volunteering.models import VolunteerProfile
-
-from .domain_events import (
-    DonationReceived,
-    EventPublished,
-    EventReminderDue,
-    RegistrationCreated,
-    RegistrationStatusChanged,
-    TeamMemberAssigned,
+from .strategies import (
+    default_coordinator_strategies,
+    default_ngo_administrator_strategies,
+    default_volunteer_strategies,
 )
-from .models import Notification
 
-
+# OBSERVER INTERFACE
 class Observer(ABC):
     @abstractmethod
     def update(self, domain_event):
         pass
 
 
+# SUBJECT INTERFACE
 class Subject(ABC):
     @abstractmethod
     def attach(self, observer):
@@ -33,6 +27,8 @@ class Subject(ABC):
     def notify(self, domain_event):
         pass
 
+
+# CONCRETE SUBJECT
 
 class NotificationSubject(Subject):
     def __init__(self):
@@ -51,150 +47,37 @@ class NotificationSubject(Subject):
             observer.update(domain_event)
 
 
-class VolunteerNotificationObserver(Observer):
+# CONCRETE OBSERVERS
+
+class StrategyDrivenObserver(Observer):
+    def __init__(self, strategies):
+        self._strategies = list(strategies)
+
     def update(self, domain_event):
-        if isinstance(domain_event, RegistrationStatusChanged):
-            self._registration_status_notification(
-                domain_event.registration
-            )
+        for strategy in self._strategies:
+            if strategy.handles(domain_event):
+                strategy.notify(domain_event)
 
-        elif isinstance(domain_event, EventPublished):
-            self._new_event_notifications(domain_event.event)
 
-        elif isinstance(domain_event, EventReminderDue):
-            self._event_reminder_notifications(domain_event.event)
+class VolunteerNotificationObserver(StrategyDrivenObserver):
+    def __init__(self, strategies=None):
+        super().__init__(strategies or default_volunteer_strategies())
 
-        elif isinstance(domain_event, TeamMemberAssigned):
-            self._team_assignment_notification(
-                domain_event.membership
-            )
 
-    def _registration_status_notification(self, registration):
-        if registration.status == Registration.Status.APPROVED:
-            notification_type = Notification.Type.REGISTRATION_APPROVED
-            title = "Registration approved"
-            message = (
-                f"Your registration for '{registration.event.title}' "
-                "has been approved."
-            )
-
-        elif registration.status == Registration.Status.REJECTED:
-            notification_type = Notification.Type.REGISTRATION_REJECTED
-            title = "Registration rejected"
-            message = (
-                f"Your registration for '{registration.event.title}' "
-                "has been rejected."
-            )
-
-        else:
-            return
-
-        Notification.objects.get_or_create(
-            recipient=registration.volunteer.user,
-            notification_type=notification_type,
-            registration=registration,
-            defaults={
-                "event": registration.event,
-                "title": title,
-                "message": message,
-            },
-        )
-
-    def _new_event_notifications(self, event):
-        volunteers = VolunteerProfile.objects.select_related("user")
-
-        for profile in volunteers:
-            Notification.objects.get_or_create(
-                recipient=profile.user,
-                notification_type=Notification.Type.EVENT_PUBLISHED,
-                event=event,
-                defaults={
-                    "title": f"New event: {event.title}",
-                    "message": (
-                        f"A new volunteer opportunity, '{event.title}', "
-                        f"is available at {event.location}."
-                    ),
-                },
-            )
-
-    def _event_reminder_notifications(self, event):
-        registrations = event.registrations.filter(
-            status=Registration.Status.APPROVED
-        ).select_related("volunteer__user")
-
-        for registration in registrations:
-            Notification.objects.get_or_create(
-                recipient=registration.volunteer.user,
-                notification_type=Notification.Type.EVENT_REMINDER,
-                event=event,
-                defaults={
-                    "registration": registration,
-                    "title": f"Reminder: {event.title} is tomorrow",
-                    "message": (
-                        f"Your event '{event.title}' starts tomorrow at "
-                        f"{event.location}."
-                    ),
-                },
-            )
-
-    def _team_assignment_notification(self, membership):
-        Notification.objects.get_or_create(
-            recipient=membership.volunteer.user,
-            notification_type=Notification.Type.TEAM_ASSIGNED,
-            team_membership=membership,
-            defaults={
-                "event": membership.team.event,
-                "title": (
-                    f"You were assigned to {membership.team.name}"
-                ),
-                "message": (
-                    f"You have been assigned to the "
-                    f"'{membership.team.name}' team for "
-                    f"'{membership.team.event.title}'."
-                ),
-            },
+class NGOAdministratorNotificationObserver(StrategyDrivenObserver):
+    def __init__(self, strategies=None):
+        super().__init__(
+            strategies or default_ngo_administrator_strategies()
         )
 
 
-class NGOAdministratorNotificationObserver(Observer):
-    def update(self, domain_event):
-        if isinstance(domain_event, RegistrationCreated):
-            registration = domain_event.registration
-            event = registration.event
-
-            Notification.objects.get_or_create(
-                recipient=event.ngo.administrator,
-                notification_type=Notification.Type.REGISTRATION_RECEIVED,
-                registration=registration,
-                defaults={
-                    "event": event,
-                    "title": "New volunteer registration",
-                    "message": (
-                        f"{registration.volunteer.user.username} registered "
-                        f"for '{event.title}'."
-                    ),
-                },
-            )
-
-        elif isinstance(domain_event, DonationReceived):
-            donation = domain_event.donation
-
-            Notification.objects.get_or_create(
-                recipient=donation.ngo.administrator,
-                notification_type=Notification.Type.DONATION_RECEIVED,
-                donation=donation,
-                defaults={
-                    "title": "New donation received",
-                    "message": (
-                        f"A donation of {donation.amount} was received "
-                        f"for {donation.ngo.name}."
-                    ),
-                },
-            )
+class CoordinatorNotificationObserver(StrategyDrivenObserver):
+    def __init__(self, strategies=None):
+        super().__init__(strategies or default_coordinator_strategies())
 
 
 notification_subject = NotificationSubject()
 
-# One subject can notify multiple concrete observers.
 notification_subject.attach(VolunteerNotificationObserver())
 notification_subject.attach(NGOAdministratorNotificationObserver())
+notification_subject.attach(CoordinatorNotificationObserver())

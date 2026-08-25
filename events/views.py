@@ -15,11 +15,11 @@ from rest_framework.views import APIView
 
 from accounts.models import User
 from volunteering.models import VolunteerProfile
-from .facades import EventCompletionFacade
+from events.facades import EventCompletionFacade
 
-from .models import Event, Registration, Team, TeamMembership
-from .services import ProxyEventService
-from .serializers import (
+from events.models import Event, Registration, Team, TeamMembership
+from events.services import ProxyEventService
+from events.serializers import (
     EventCreateSerializer,
     EventSerializer,
     EventUpdateSerializer,
@@ -29,6 +29,7 @@ from .serializers import (
 )
 
 from notifications.domain_events import (
+    CoordinatorAssigned,
     EventPublished,
     RegistrationCreated,
     RegistrationStatusChanged,
@@ -36,7 +37,7 @@ from notifications.domain_events import (
 )
 from notifications.observers import notification_subject
 
-from .registration_decorators import (
+from events.registration_decorators import (
     BasicRegistrationService,
     CapacityDecorator,
     DuplicateRegistrationDecorator,
@@ -462,6 +463,8 @@ class AssignCoordinatorView(APIView):
 
         event.coordinator = coordinator
         event.save(update_fields=["coordinator"])
+
+        notification_subject.notify(CoordinatorAssigned(event))
 
         return Response(
             {

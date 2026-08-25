@@ -6,7 +6,14 @@ from rest_framework.test import APITestCase
 
 from accounts.models import User
 from organizations.models import NGO
-from donations.models import Donation
+
+from .models import Donation
+from .acknowledgement import (
+    BasicDonationAcknowledgement,
+    DonorDetailsDecorator,
+    NGOInformationDecorator,
+    AllocationDetailsDecorator,
+)
 
 
 class DonationAPITests(APITestCase):
@@ -68,18 +75,27 @@ class DonationAPITests(APITestCase):
             status.HTTP_201_CREATED,
         )
 
-        self.assertEqual(Donation.objects.count(), 1)
+        self.assertEqual(
+            Donation.objects.count(),
+            1,
+        )
 
         donation = Donation.objects.first()
 
-        self.assertEqual(donation.donor, self.donor)
+        self.assertEqual(
+            donation.donor,
+            self.donor,
+        )
+
         self.assertEqual(
             donation.amount,
             Decimal("100.00"),
         )
 
     def test_volunteer_cannot_create_donation(self):
-        self.client.force_authenticate(user=self.volunteer)
+        self.client.force_authenticate(
+            user=self.volunteer
+        )
 
         response = self.client.post(
             reverse("donation-create"),
@@ -116,7 +132,9 @@ class DonationAPITests(APITestCase):
             amount=Decimal("200.00"),
         )
 
-        self.client.force_authenticate(user=self.donor)
+        self.client.force_authenticate(
+            user=self.donor
+        )
 
         response = self.client.get(
             reverse("donation-my-list")
@@ -127,7 +145,10 @@ class DonationAPITests(APITestCase):
             status.HTTP_200_OK,
         )
 
-        self.assertEqual(len(response.data), 1)
+        self.assertEqual(
+            len(response.data),
+            1,
+        )
 
     def test_ngo_admin_can_view_received_donations(self):
         Donation.objects.create(
@@ -144,7 +165,9 @@ class DonationAPITests(APITestCase):
             amount=Decimal("200.00"),
         )
 
-        self.client.force_authenticate(user=self.admin)
+        self.client.force_authenticate(
+            user=self.admin
+        )
 
         response = self.client.get(
             reverse("donation-ngo-list")
@@ -155,7 +178,10 @@ class DonationAPITests(APITestCase):
             status.HTTP_200_OK,
         )
 
-        self.assertEqual(len(response.data), 1)
+        self.assertEqual(
+            len(response.data),
+            1,
+        )
 
     def test_admin_can_update_donation_allocation(self):
         donation = Donation.objects.create(
@@ -165,7 +191,9 @@ class DonationAPITests(APITestCase):
             amount=Decimal("100.00"),
         )
 
-        self.client.force_authenticate(user=self.admin)
+        self.client.force_authenticate(
+            user=self.admin
+        )
 
         response = self.client.patch(
             reverse(

@@ -4,6 +4,8 @@ from .creators import (
 )
 from .models import Certificate
 
+from notifications.domain_events import CertificateIssued
+from notifications.observers import notification_subject
 
 class CertificateService:
 
@@ -23,6 +25,8 @@ class CertificateService:
                 event=registration.event,
             )
         )
+
+        notification_subject.notify(CertificateIssued(certificate))
 
         return certificate
 

@@ -41,11 +41,12 @@ class RealEventService(AbstractEventService):
             [],
         )
 
-        builder = DraftEventBuilder()
         director = EventDirector()
+        director.set_builder(DraftEventBuilder())
 
-        return director.build_event(
-            builder,
+        coordinator = event_data.get("coordinator")
+
+        common_kwargs = dict(
             ngo=event_data["ngo"],
             created_by=event_data["created_by"],
             title=event_data["title"],
@@ -59,8 +60,32 @@ class RealEventService(AbstractEventService):
             volunteer_capacity=event_data[
                 "volunteer_capacity"
             ],
-            required_skills=required_skills,
         )
+
+        # Pick the recipe that matches what was supplied: whether a
+        # coordinator was assigned up front and whether required skills
+        # were specified. The director/builder pair does not change -
+        # only the sequence of steps invoked on it does.
+        if coordinator and required_skills:
+            return director.build_event_with_coordinator(
+                coordinator=coordinator,
+                required_skills=required_skills,
+                **common_kwargs,
+            )
+
+        if coordinator:
+            return director.build_assigned_event_without_skills(
+                coordinator=coordinator,
+                **common_kwargs,
+            )
+
+        if required_skills:
+            return director.build_full_event(
+                required_skills=required_skills,
+                **common_kwargs,
+            )
+
+        return director.build_event_without_skills(**common_kwargs)
 
 
 # Proxy Subject

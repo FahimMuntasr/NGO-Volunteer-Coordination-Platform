@@ -4,6 +4,7 @@ from .models import Event
 
 
 class EventBuilder(ABC):
+
     def __init__(self):
         self.reset()
 
@@ -31,6 +32,9 @@ class EventBuilder(ABC):
     def set_required_skills(self, required_skills):
         self._required_skills = list(required_skills)
 
+    def assign_coordinator(self, coordinator):
+        self._event_data["coordinator"] = coordinator
+
     @abstractmethod
     def set_status(self):
         pass
@@ -55,9 +59,15 @@ class PublishedEventBuilder(EventBuilder):
 
 
 class EventDirector:
-    def build_event(
+
+    def __init__(self, builder=None):
+        self.builder = builder
+
+    def set_builder(self, builder):
+        self.builder = builder
+
+    def build_full_event(
         self,
-        builder,
         *,
         ngo,
         created_by,
@@ -70,17 +80,100 @@ class EventDirector:
         volunteer_capacity,
         required_skills,
     ):
-        builder.reset()
-
-        builder.set_ownership(ngo, created_by)
-        builder.set_basic_details(title, description, location)
-        builder.set_schedule(
+        self.builder.reset()
+        self.builder.set_ownership(ngo, created_by)
+        self.builder.set_basic_details(title, description, location)
+        self.builder.set_schedule(
             start_date,
             end_date,
             registration_deadline,
         )
-        builder.set_capacity(volunteer_capacity)
-        builder.set_required_skills(required_skills)
-        builder.set_status()
+        self.builder.set_capacity(volunteer_capacity)
+        self.builder.set_required_skills(required_skills)
+        self.builder.set_status()
 
-        return builder.build()
+        return self.builder.build()
+
+    def build_event_with_coordinator(
+        self,
+        *,
+        coordinator,
+        ngo,
+        created_by,
+        title,
+        description,
+        location,
+        start_date,
+        end_date,
+        registration_deadline,
+        volunteer_capacity,
+        required_skills,
+    ):
+        self.builder.reset()
+        self.builder.set_ownership(ngo, created_by)
+        self.builder.set_basic_details(title, description, location)
+        self.builder.set_schedule(
+            start_date,
+            end_date,
+            registration_deadline,
+        )
+        self.builder.set_capacity(volunteer_capacity)
+        self.builder.set_required_skills(required_skills)
+        self.builder.assign_coordinator(coordinator)
+        self.builder.set_status()
+
+        return self.builder.build()
+
+    def build_event_without_skills(
+        self,
+        *,
+        ngo,
+        created_by,
+        title,
+        description,
+        location,
+        start_date,
+        end_date,
+        registration_deadline,
+        volunteer_capacity,
+    ):
+        self.builder.reset()
+        self.builder.set_ownership(ngo, created_by)
+        self.builder.set_basic_details(title, description, location)
+        self.builder.set_schedule(
+            start_date,
+            end_date,
+            registration_deadline,
+        )
+        self.builder.set_capacity(volunteer_capacity)
+        self.builder.set_status()
+
+        return self.builder.build()
+
+    def build_assigned_event_without_skills(
+        self,
+        *,
+        coordinator,
+        ngo,
+        created_by,
+        title,
+        description,
+        location,
+        start_date,
+        end_date,
+        registration_deadline,
+        volunteer_capacity,
+    ):
+        self.builder.reset()
+        self.builder.set_ownership(ngo, created_by)
+        self.builder.set_basic_details(title, description, location)
+        self.builder.set_schedule(
+            start_date,
+            end_date,
+            registration_deadline,
+        )
+        self.builder.set_capacity(volunteer_capacity)
+        self.builder.assign_coordinator(coordinator)
+        self.builder.set_status()
+
+        return self.builder.build()
