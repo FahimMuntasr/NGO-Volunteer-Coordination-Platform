@@ -822,6 +822,7 @@ class EventCancelView(APIView):
         )
         
 class EventCompleteView(APIView):
+
     permission_classes = [IsAuthenticated]
 
     def post(self, request, event_id):
@@ -831,9 +832,15 @@ class EventCompleteView(APIView):
             pk=event_id,
         )
 
-        result = EventCompletionFacade.complete_event(
-            event=event,
-            user=request.user,
+        # =========================================
+        # CLIENT
+        # =========================================
+
+        facade = EventCompletionFacade()
+
+        result = facade.complete_event(
+            event,
+            request.user,
         )
 
         return Response(
