@@ -4,6 +4,8 @@ import {
   useState,
 } from "react";
 
+import { Link } from "react-router-dom";
+
 import DashboardLayout from "../layouts/DashboardLayout";
 
 import {
@@ -11,6 +13,12 @@ import {
   markNotificationRead,
   type Notification,
 } from "../api/notifications";
+
+
+const NOTIFICATION_LINKS: Record<string, string> = {
+  CERTIFICATE_ISSUED: "/dashboard/certificates",
+  COORDINATOR_ASSIGNED: "/dashboard/coordinator/events",
+};
 
 
 function formatDate(
@@ -408,6 +416,27 @@ export default function Notifications() {
                                 notification.created_at,
                               )}
                             </p>
+
+                          )}
+
+
+                          {NOTIFICATION_LINKS[
+                            notification.notification_type
+                          ] && (
+
+                            <Link
+                              to={
+                                NOTIFICATION_LINKS[
+                                  notification.notification_type
+                                ]
+                              }
+                              className="mt-2 inline-block text-sm font-semibold text-blue-600 hover:underline"
+                            >
+                              {notification.notification_type ===
+                              "CERTIFICATE_ISSUED"
+                                ? "View certificate"
+                                : "View event"}
+                            </Link>
 
                           )}
 

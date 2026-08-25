@@ -1,13 +1,17 @@
 from django.test import TestCase
 from datetime import timedelta
+from types import SimpleNamespace
 from django.utils import timezone
 
 from accounts.models import User
+from certificates.models import Certificate
 from events.models import Event, Registration
 from organizations.models import NGO
 from volunteering.models import VolunteerProfile
 
 from .domain_events import (
+    CertificateIssued,
+    CoordinatorAssigned,
     EventPublished,
     EventReminderDue,
     RegistrationCreated,
@@ -15,11 +19,13 @@ from .domain_events import (
 )
 from .models import Notification
 from .observers import (
+    CoordinatorNotificationObserver,
     NGOAdministratorNotificationObserver,
     NotificationSubject,
     Observer,
     VolunteerNotificationObserver,
 )
+from .strategies import NotificationStrategy
 
 
 class RecordingObserver(Observer):
@@ -182,3 +188,74 @@ class ObserverPatternTests(TestCase):
         )
 
         self.assertEqual(notifications.count(), 2)
+
+    def test_coordinator_is_notified_when_assigned(self):
+        coordinator_user = User.objects.create_user(
+            username="coordinator_one",
+            password="test-password",
+            role=User.Role.COORDINATOR,
+        )
+
+        self.event.coordinator = coordinator_user
+        self.event.save(update_fields=["coordinator"])
+
+        subject = NotificationSubject()
+        subject.attach(CoordinatorNotificationObserver())
+
+        subject.notify(CoordinatorAssigned(self.event))
+
+        notification = Notification.objects.get(
+            notification_type=Notification.Type.COORDINATOR_ASSIGNED,
+        )
+
+        self.assertEqual(notification.recipient, coordinator_user)
+        self.assertEqual(notification.event, self.event)
+
+    def test_volunteer_is_notified_when_certificate_is_issued(self):
+        certificate = Certificate.objects.create(
+            volunteer=self.volunteer,
+            event=self.event,
+        )
+
+        subject = NotificationSubject()
+        subject.attach(VolunteerNotificationObserver())
+
+        subject.notify(CertificateIssued(certificate))
+
+        notification = Notification.objects.get(
+            notification_type=Notification.Type.CERTIFICATE_ISSUED,
+        )
+
+        self.assertEqual(notification.recipient, self.volunteer.user)
+        self.assertEqual(notification.certificate, certificate)
+
+
+class StrategySwapTests(TestCase):
+    """An Observer's reaction to a domain event can be swapped at
+    runtime by injecting a different NotificationStrategy list, without
+    touching Subject/Observer wiring at all."""
+
+    def test_custom_strategy_replaces_default_behaviour(self):
+        received = []
+
+        class SpyStrategy(NotificationStrategy):
+            def handles(self, domain_event):
+                return isinstance(domain_event, EventPublished)
+
+            def notify(self, domain_event):
+                received.append(domain_event)
+
+        subject = NotificationSubject()
+        subject.attach(
+            VolunteerNotificationObserver(strategies=[SpyStrategy()])
+        )
+
+        # A bare object works here - the spy strategy never touches
+        # the database, unlike the default NewEventPublishedStrategy.
+        fake_event = SimpleNamespace(title="Fake Event")
+        domain_event = EventPublished(fake_event)
+
+        subject.notify(domain_event)
+
+        self.assertEqual(received, [domain_event])
+        self.assertEqual(Notification.objects.count(), 0)

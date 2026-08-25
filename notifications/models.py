@@ -19,6 +19,14 @@ class Notification(models.Model):
         EVENT_REMINDER = "EVENT_REMINDER", "Event Reminder"
         TEAM_ASSIGNED = "TEAM_ASSIGNED", "Team Assigned"
         DONATION_RECEIVED = "DONATION_RECEIVED", "Donation Received"
+        COORDINATOR_ASSIGNED = (
+            "COORDINATOR_ASSIGNED",
+            "Coordinator Assigned",
+        )
+        CERTIFICATE_ISSUED = (
+            "CERTIFICATE_ISSUED",
+            "Certificate Issued",
+        )
 
     recipient = models.ForeignKey(
         settings.AUTH_USER_MODEL,
@@ -57,6 +65,14 @@ class Notification(models.Model):
 
     donation = models.ForeignKey(
         "donations.Donation",
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name="notifications",
+    )
+
+    certificate = models.ForeignKey(
+        "certificates.Certificate",
         on_delete=models.CASCADE,
         null=True,
         blank=True,

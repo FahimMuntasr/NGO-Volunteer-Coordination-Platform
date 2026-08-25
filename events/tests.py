@@ -105,6 +105,24 @@ class EventCreationTests(APITestCase):
             self.ngo,
         )
 
+    def test_event_can_be_created_without_a_coordinator(self):
+        self.client.force_authenticate(user=self.admin)
+
+        response = self.client.post(
+            reverse("event-create"),
+            self.valid_data,
+            format="json",
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_201_CREATED,
+        )
+
+        event = Event.objects.get(pk=response.data["id"])
+
+        self.assertIsNone(event.coordinator)
+
     def test_volunteer_cannot_create_event(self):
         self.client.force_authenticate(
             user=self.volunteer
@@ -2326,6 +2344,12 @@ class EventBuilderTests(TestCase):
             role=User.Role.NGO_ADMIN,
         )
 
+        self.coordinator = User.objects.create_user(
+            username="event_coordinator",
+            password="test-password",
+            role=User.Role.COORDINATOR,
+        )
+
         self.ngo = NGO.objects.create(
             name="Helping Hands",
             email="helpinghands@example.com",
@@ -2346,27 +2370,97 @@ class EventBuilderTests(TestCase):
             "end_date": now + timedelta(days=3, hours=3),
             "registration_deadline": now + timedelta(days=2),
             "volunteer_capacity": 20,
-            "required_skills": [self.skill],
         }
 
-    def test_director_builds_a_draft_event(self):
-        event = EventDirector().build_event(
-            DraftEventBuilder(),
+    def test_full_event_recipe_sets_required_skills(self):
+        director = EventDirector()
+        director.set_builder(DraftEventBuilder())
+
+        event = director.build_full_event(
+            required_skills=[self.skill],
             **self.event_data,
         )
 
         self.assertEqual(event.status, "DRAFT")
         self.assertEqual(event.required_skills.count(), 1)
+        self.assertIsNone(event.coordinator)
 
-    def test_director_builds_a_published_event(self):
-        event = EventDirector().build_event(
-            PublishedEventBuilder(),
+    def test_event_without_skills_recipe_skips_required_skills_step(self):
+        director = EventDirector()
+        director.set_builder(PublishedEventBuilder())
+
+        event = director.build_event_without_skills(**self.event_data)
+
+        self.assertEqual(event.status, "OPEN")
+        self.assertEqual(event.required_skills.count(), 0)
+        self.assertIsNone(event.coordinator)
+
+    def test_event_with_coordinator_recipe_adds_the_extra_step(self):
+        director = EventDirector()
+        director.set_builder(PublishedEventBuilder())
+
+        event = director.build_event_with_coordinator(
+            coordinator=self.coordinator,
+            required_skills=[self.skill],
             **self.event_data,
         )
 
         self.assertEqual(event.status, "OPEN")
         self.assertEqual(event.required_skills.count(), 1)
-        
+        self.assertEqual(event.coordinator, self.coordinator)
+
+    def test_assigned_event_without_skills_recipe(self):
+        director = EventDirector()
+        director.set_builder(DraftEventBuilder())
+
+        event = director.build_assigned_event_without_skills(
+            coordinator=self.coordinator,
+            **self.event_data,
+        )
+
+        self.assertEqual(event.status, "DRAFT")
+        self.assertEqual(event.required_skills.count(), 0)
+        self.assertEqual(event.coordinator, self.coordinator)
+
+    def test_same_director_recipes_work_with_any_builder(self):
+        director = EventDirector()
+
+        for index, builder in enumerate(
+            [DraftEventBuilder(), PublishedEventBuilder()]
+        ):
+            director.set_builder(builder)
+
+            event_data = {
+                **self.event_data,
+                "title": f"Community Cleanup {index}",
+            }
+
+            full = director.build_full_event(
+                required_skills=[self.skill],
+                **event_data,
+            )
+            without_skills = director.build_event_without_skills(
+                **event_data,
+            )
+            with_coordinator = director.build_event_with_coordinator(
+                coordinator=self.coordinator,
+                required_skills=[self.skill],
+                **event_data,
+            )
+
+            expected_status = (
+                "DRAFT"
+                if isinstance(builder, DraftEventBuilder)
+                else "OPEN"
+            )
+
+            for event in (full, without_skills, with_coordinator):
+                self.assertEqual(event.status, expected_status)
+
+            self.assertEqual(full.required_skills.count(), 1)
+            self.assertEqual(without_skills.required_skills.count(), 0)
+            self.assertEqual(with_coordinator.coordinator, self.coordinator)
+
 class EventTeamPrivacyTests(APITestCase):
 
     def setUp(self):

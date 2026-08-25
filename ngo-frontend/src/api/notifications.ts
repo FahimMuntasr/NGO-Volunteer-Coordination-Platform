@@ -3,6 +3,8 @@ import api from "../services/api";
 export type Notification = {
   id: number;
   notification_type: string;
+  event?: number | null;
+  certificate?: number | null;
   title: string;
   message: string;
   is_read: boolean;
