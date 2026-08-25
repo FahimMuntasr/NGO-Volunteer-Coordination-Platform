@@ -1,6 +1,6 @@
 from django.db import transaction
 
-from .completion_services import (
+from .facade_completion_services import (
     AttendanceService,
     EventHoursService,
     EventStatusService,
