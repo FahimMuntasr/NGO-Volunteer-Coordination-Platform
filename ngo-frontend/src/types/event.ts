@@ -1,3 +1,7 @@
+export type EventCapacityMode =
+  | "FIXED"
+  | "UNLIMITED";
+
 export type EventStatus =
   | "DRAFT"
   | "OPEN"
@@ -15,7 +19,8 @@ export interface Event {
   start_date: string;
   end_date: string;
   registration_deadline: string;
-  volunteer_capacity: number;
+  capacity_mode: EventCapacityMode;
+  volunteer_capacity: number | null;
   required_skills: string[];
   status: EventStatus;
   coordinator: number | null;

@@ -1,6 +1,8 @@
 from django.utils import timezone
 from rest_framework import serializers
 
+from accounts.models import User
+
 from .models import (
     Event,
     Registration,
@@ -45,6 +47,7 @@ class EventSerializer(serializers.ModelSerializer):
             "start_date",
             "end_date",
             "registration_deadline",
+            "capacity_mode",
             "volunteer_capacity",
             "required_skills",
             "status",
@@ -66,6 +69,24 @@ class EventCreateSerializer(serializers.ModelSerializer):
         required=False,
     )
 
+    # Optional at creation time, same as required_skill_ids - an event
+    # can be created with or without a coordinator, and one can always
+    # be assigned/replaced later through the dedicated
+    # AssignCoordinatorView. Restricted to users with the COORDINATOR
+    # role, same rule the dedicated window already enforces.
+    capacity_mode = serializers.ChoiceField(
+        choices=Event.CapacityMode.choices,
+        default=Event.CapacityMode.FIXED,
+    )
+
+    coordinator_id = serializers.PrimaryKeyRelatedField(
+        queryset=User.objects.filter(role=User.Role.COORDINATOR),
+        write_only=True,
+        source="coordinator",
+        required=False,
+        allow_null=True,
+    )
+
     class Meta:
         model = Event
 
@@ -77,8 +98,10 @@ class EventCreateSerializer(serializers.ModelSerializer):
             "start_date",
             "end_date",
             "registration_deadline",
+            "capacity_mode",
             "volunteer_capacity",
             "required_skill_ids",
+            "coordinator_id",
             "status",
         ]
 
@@ -95,6 +118,32 @@ class EventCreateSerializer(serializers.ModelSerializer):
         registration_deadline = attrs.get(
             "registration_deadline"
         )
+
+        capacity_mode = attrs.get(
+            "capacity_mode",
+            Event.CapacityMode.FIXED,
+        )
+        volunteer_capacity = attrs.get(
+            "volunteer_capacity"
+        )
+
+        if capacity_mode == Event.CapacityMode.FIXED and volunteer_capacity is None:
+            raise serializers.ValidationError(
+                {
+                    "volunteer_capacity": (
+                        "Volunteer capacity is required when capacity mode is fixed."
+                    )
+                }
+            )
+
+        if capacity_mode == Event.CapacityMode.UNLIMITED and volunteer_capacity is not None:
+            raise serializers.ValidationError(
+                {
+                    "volunteer_capacity": (
+                        "Leave volunteer capacity empty when capacity mode is unlimited."
+                    )
+                }
+            )
 
         now = timezone.now()
 
@@ -184,6 +233,7 @@ class EventUpdateSerializer(serializers.ModelSerializer):
             "start_date",
             "end_date",
             "registration_deadline",
+            "capacity_mode",
             "volunteer_capacity",
             "required_skill_ids",
         ]
@@ -204,6 +254,44 @@ class EventUpdateSerializer(serializers.ModelSerializer):
             "registration_deadline",
             self.instance.registration_deadline,
         )
+
+        capacity_mode = attrs.get(
+            "capacity_mode",
+            self.instance.capacity_mode,
+        )
+        volunteer_capacity = attrs.get(
+            "volunteer_capacity",
+            self.instance.volunteer_capacity,
+        )
+
+        # Switching an existing event to unlimited capacity should clear
+        # the previous numeric capacity even when the client only changes
+        # the mode.
+        if (
+            capacity_mode == Event.CapacityMode.UNLIMITED
+            and "capacity_mode" in attrs
+            and "volunteer_capacity" not in attrs
+        ):
+            volunteer_capacity = None
+            attrs["volunteer_capacity"] = None
+
+        if capacity_mode == Event.CapacityMode.FIXED and volunteer_capacity is None:
+            raise serializers.ValidationError(
+                {
+                    "volunteer_capacity": (
+                        "Volunteer capacity is required when capacity mode is fixed."
+                    )
+                }
+            )
+
+        if capacity_mode == Event.CapacityMode.UNLIMITED and volunteer_capacity is not None:
+            raise serializers.ValidationError(
+                {
+                    "volunteer_capacity": (
+                        "Leave volunteer capacity empty when capacity mode is unlimited."
+                    )
+                }
+            )
 
         if end_date <= start_date:
             raise serializers.ValidationError(

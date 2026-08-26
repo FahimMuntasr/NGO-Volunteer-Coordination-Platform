@@ -11,6 +11,8 @@ import DashboardLayout from "../../layouts/DashboardLayout";
 
 import {
   createEvent,
+  getCoordinators,
+  type CoordinatorOption,
 } from "../../api/admin";
 
 import {
@@ -49,6 +51,16 @@ export default function CreateEvent() {
   ] = useState<number[]>([]);
 
   const [
+    coordinators,
+    setCoordinators,
+  ] = useState<CoordinatorOption[]>([]);
+
+  const [
+    selectedCoordinatorId,
+    setSelectedCoordinatorId,
+  ] = useState<number | "">("");
+
+  const [
     title,
     setTitle,
   ] = useState("");
@@ -79,6 +91,11 @@ export default function CreateEvent() {
   ] = useState("");
 
   const [
+    capacityMode,
+    setCapacityMode,
+  ] = useState<"FIXED" | "UNLIMITED">("FIXED");
+
+  const [
     capacity,
     setCapacity,
   ] = useState(1);
@@ -101,6 +118,10 @@ export default function CreateEvent() {
   useEffect(() => {
     getAvailableSkills()
       .then(setSkills)
+      .catch(console.error);
+
+    getCoordinators()
+      .then(setCoordinators)
       .catch(console.error);
   }, []);
 
@@ -199,11 +220,20 @@ export default function CreateEvent() {
         registration_deadline:
           registrationDeadline,
 
+        capacity_mode:
+          capacityMode,
+
         volunteer_capacity:
-          capacity,
+          capacityMode === "FIXED"
+            ? capacity
+            : null,
 
         required_skill_ids:
           selectedSkills,
+
+        ...(selectedCoordinatorId !== ""
+          ? { coordinator_id: selectedCoordinatorId }
+          : {}),
       });
 
 
@@ -412,30 +442,54 @@ export default function CreateEvent() {
               <div>
 
                 <label
-                  htmlFor="volunteer-capacity"
+                  htmlFor="capacity-mode"
                   className="text-sm font-semibold text-slate-700"
                 >
                   Volunteer Capacity
                 </label>
 
-                <input
-                  id="volunteer-capacity"
-                  type="number"
-                  min="1"
-
-                  value={capacity}
-
+                <select
+                  id="capacity-mode"
+                  value={capacityMode}
                   onChange={(event) =>
-                    setCapacity(
-                      Number(
-                        event.target.value,
-                      ),
+                    setCapacityMode(
+                      event.target.value as
+                        "FIXED" | "UNLIMITED",
                     )
                   }
-
-                  required
                   className={inputClass}
-                />
+                >
+                  <option value="FIXED">
+                    Fixed capacity
+                  </option>
+                  <option value="UNLIMITED">
+                    Unlimited volunteers
+                  </option>
+                </select>
+
+                {capacityMode === "FIXED" && (
+                  <input
+                    id="volunteer-capacity"
+                    type="number"
+                    min="1"
+                    value={capacity}
+                    onChange={(event) =>
+                      setCapacity(
+                        Number(
+                          event.target.value,
+                        ),
+                      )
+                    }
+                    required
+                    className={inputClass}
+                  />
+                )}
+
+                <p className="mt-2 text-xs text-slate-500">
+                  {capacityMode === "FIXED"
+                    ? "Set the maximum number of volunteers who can be approved."
+                    : "No maximum number of volunteers will be enforced."}
+                </p>
 
               </div>
 
@@ -599,6 +653,63 @@ export default function CreateEvent() {
                   );
                 },
               )}
+
+            </div>
+
+          </section>
+
+
+          {/* =========================================
+              Coordinator
+          ========================================= */}
+
+          <section className="rounded-2xl border border-slate-300/60 bg-[#f4f7fa] p-6">
+
+            <h2 className="text-xl font-bold text-slate-900">
+              Coordinator (Optional)
+            </h2>
+
+            <p className="mt-1 text-sm text-slate-500">
+              Assign a coordinator now, or leave this
+              blank and assign one later from the
+              Assign Coordinator page.
+            </p>
+
+
+            <div className="mt-5">
+
+              <select
+                value={
+                  selectedCoordinatorId
+                }
+                onChange={(
+                  event,
+                ) =>
+                  setSelectedCoordinatorId(
+                    event.target.value
+                      ? Number(event.target.value)
+                      : "",
+                  )
+                }
+                className={inputClass}
+              >
+                <option value="">
+                  No coordinator yet
+                </option>
+
+                {coordinators.map(
+                  (coordinator) => (
+                    <option
+                      key={coordinator.id}
+                      value={coordinator.id}
+                    >
+                      {coordinator.first_name || coordinator.last_name
+                        ? `${coordinator.first_name} ${coordinator.last_name}`.trim()
+                        : coordinator.username}
+                    </option>
+                  ),
+                )}
+              </select>
 
             </div>
 

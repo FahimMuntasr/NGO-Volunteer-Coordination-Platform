@@ -501,7 +501,9 @@ export default function AdminEvents() {
                         <span>
                           Capacity:{" "}
                           {
-                            event.volunteer_capacity
+                            event.capacity_mode === "UNLIMITED"
+                              ? "Unlimited"
+                              : event.volunteer_capacity
                           }
                         </span>
 
