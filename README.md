@@ -322,7 +322,21 @@ Examples include notifications for:
 
 ## Builder Pattern
 
-The Builder implementation is being finalized separately and will be integrated before the final project submission.
+Used for event construction.
+
+The Event Builder constructs Event objects step by step, including:
+
+- NGO ownership
+- Basic event information
+- Schedule
+- Volunteer capacity
+- Required skills
+- Coordinator assignment
+- Event status
+
+The implementation includes an Event Director that controls the sequence of construction steps.
+
+The event system also supports fixed-capacity and unlimited-capacity events.
 
 ---
 
