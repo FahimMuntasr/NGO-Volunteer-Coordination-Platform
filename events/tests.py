@@ -222,6 +222,98 @@ class EventCreationTests(APITestCase):
             0,
         )
         
+    def test_event_start_date_cannot_be_in_past(self):
+
+        self.client.force_authenticate(
+            user=self.admin
+        )
+
+        past_start = (
+            timezone.now()
+            - timedelta(days=2)
+        )
+
+        past_end = (
+            timezone.now()
+            - timedelta(days=1)
+        )
+
+        past_deadline = (
+            timezone.now()
+            - timedelta(days=3)
+        )
+
+        invalid_data = {
+            "title": "Past Event",
+            "description": "Invalid past event.",
+            "location": "Dhaka",
+            "start_date": past_start.isoformat(),
+            "end_date": past_end.isoformat(),
+            "registration_deadline": (
+                past_deadline.isoformat()
+            ),
+            "volunteer_capacity": 20,
+        }
+
+        response = self.client.post(
+            reverse("event-create"),
+            invalid_data,
+            format="json",
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_400_BAD_REQUEST,
+        )
+
+        self.assertIn(
+            "start_date",
+            response.data,
+        )
+
+        self.assertEqual(
+            Event.objects.count(),
+            0,
+        )
+        
+    def test_registration_deadline_cannot_be_in_past(
+    self
+):
+
+        self.client.force_authenticate(
+            user=self.admin
+        )
+
+        invalid_data = self.valid_data.copy()
+
+        invalid_data[
+            "registration_deadline"
+        ] = (
+            timezone.now()
+            - timedelta(hours=1)
+        ).isoformat()
+
+        response = self.client.post(
+            reverse("event-create"),
+            invalid_data,
+            format="json",
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_400_BAD_REQUEST,
+        )
+
+        self.assertIn(
+            "registration_deadline",
+            response.data,
+        )
+
+        self.assertEqual(
+            Event.objects.count(),
+            0,
+        )
+            
 class EventRegistrationTests(APITestCase):
 
     def setUp(self):
@@ -1238,6 +1330,156 @@ class TeamTests(APITestCase):
                 volunteer=self.volunteer
             ).count(),
             1,
+        )
+        
+    def test_approved_volunteer_can_be_team_leader(self):
+
+        self.client.force_authenticate(
+            user=self.admin
+        )
+
+        response = self.client.post(
+            reverse(
+                "event-teams",
+                args=[self.event.id],
+            ),
+            {
+                "name": "Logistics Team",
+                "leader": self.volunteer.id,
+            },
+            format="json",
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_201_CREATED,
+        )
+
+        team = Team.objects.get(
+            pk=response.data["id"]
+        )
+
+        self.assertEqual(
+            team.leader,
+            self.volunteer,
+        )
+        
+    def test_non_approved_volunteer_cannot_be_team_leader(
+    self
+):
+
+        self.registration.status = (
+            Registration.Status.PENDING
+        )
+
+        self.registration.save(
+            update_fields=["status"]
+        )
+
+        self.client.force_authenticate(
+            user=self.admin
+        )
+
+        response = self.client.post(
+            reverse(
+                "event-teams",
+                args=[self.event.id],
+            ),
+            {
+                "name": "Logistics Team",
+                "leader": self.volunteer.id,
+            },
+            format="json",
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_400_BAD_REQUEST,
+        )
+
+        self.assertIn(
+            "leader",
+            response.data,
+        )
+
+        self.assertEqual(
+            Team.objects.count(),
+            0,
+        )
+        
+    def test_volunteer_from_other_event_cannot_be_team_leader(
+    self
+):
+
+        other_volunteer_user = User.objects.create_user(
+            username="other_volunteer",
+            password="test123",
+            role=User.Role.VOLUNTEER,
+        )
+
+        other_volunteer, _ = (
+            VolunteerProfile.objects.get_or_create(
+                user=other_volunteer_user
+            )
+        )
+
+        other_event = Event.objects.create(
+            ngo=self.ngo,
+            created_by=self.admin,
+            title="Other Event",
+            description="Another event.",
+            location="Dhaka",
+            start_date=(
+                self.event.start_date
+                + timedelta(days=5)
+            ),
+            end_date=(
+                self.event.end_date
+                + timedelta(days=5)
+            ),
+            registration_deadline=(
+                self.event.registration_deadline
+                + timedelta(days=5)
+            ),
+            volunteer_capacity=10,
+            status=Event.Status.OPEN,
+        )
+
+        Registration.objects.create(
+            event=other_event,
+            volunteer=other_volunteer,
+            status=Registration.Status.APPROVED,
+        )
+
+        self.client.force_authenticate(
+            user=self.admin
+        )
+
+        response = self.client.post(
+            reverse(
+                "event-teams",
+                args=[self.event.id],
+            ),
+            {
+                "name": "Logistics Team",
+                "leader": other_volunteer.id,
+            },
+            format="json",
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_400_BAD_REQUEST,
+        )
+
+        self.assertIn(
+            "leader",
+            response.data,
+        )
+
+        self.assertEqual(
+            Team.objects.count(),
+            0,
         )
         
 class AttendanceTests(APITestCase):

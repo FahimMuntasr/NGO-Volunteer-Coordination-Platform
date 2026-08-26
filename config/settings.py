@@ -227,3 +227,24 @@ SECURE_PROXY_SSL_HEADER = (
     "HTTP_X_FORWARDED_PROTO",
     "https",
 )
+
+# =========================================
+# Production Security
+# =========================================
+
+if not DEBUG:
+
+    # Railway serves the app through HTTPS.
+    SECURE_SSL_REDIRECT = True
+
+    # Cookies should only be sent over HTTPS.
+    SESSION_COOKIE_SECURE = True
+    CSRF_COOKIE_SECURE = True
+
+    # Tell browsers to prefer HTTPS.
+    SECURE_HSTS_SECONDS = 3600
+
+    # We are not forcing HSTS on subdomains
+    # because this is a student project.
+    SECURE_HSTS_INCLUDE_SUBDOMAINS = False
+    SECURE_HSTS_PRELOAD = False

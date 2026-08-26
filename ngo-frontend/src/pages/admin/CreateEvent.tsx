@@ -22,75 +22,80 @@ import type {
 } from "../../types/volunteer";
 
 
+function getCurrentLocalDateTime() {
+  const now = new Date();
+
+  now.setMinutes(
+    now.getMinutes() - now.getTimezoneOffset()
+  );
+
+  return now
+    .toISOString()
+    .slice(0, 16);
+}
+
+
 export default function CreateEvent() {
-  const navigate =
-    useNavigate();
+  const navigate = useNavigate();
 
   const [
     skills,
     setSkills,
-  ] =
-    useState<Skill[]>([]);
+  ] = useState<Skill[]>([]);
 
   const [
     selectedSkills,
     setSelectedSkills,
-  ] =
-    useState<number[]>([]);
+  ] = useState<number[]>([]);
 
   const [
     title,
     setTitle,
-  ] =
-    useState("");
+  ] = useState("");
 
   const [
     description,
     setDescription,
-  ] =
-    useState("");
+  ] = useState("");
 
   const [
     location,
     setLocation,
-  ] =
-    useState("");
+  ] = useState("");
 
   const [
     startDate,
     setStartDate,
-  ] =
-    useState("");
+  ] = useState("");
 
   const [
     endDate,
     setEndDate,
-  ] =
-    useState("");
+  ] = useState("");
 
   const [
     registrationDeadline,
     setRegistrationDeadline,
-  ] =
-    useState("");
+  ] = useState("");
 
   const [
     capacity,
     setCapacity,
-  ] =
-    useState(1);
+  ] = useState(1);
 
   const [
     error,
     setError,
-  ] =
-    useState("");
+  ] = useState("");
 
   const [
     submitting,
     setSubmitting,
-  ] =
-    useState(false);
+  ] = useState(false);
+
+
+  const minimumDateTime =
+    getCurrentLocalDateTime();
 
 
   useEffect(() => {
@@ -105,13 +110,9 @@ export default function CreateEvent() {
   ) {
     setSelectedSkills(
       (current) =>
-        current.includes(
-          skillId,
-        )
+        current.includes(skillId)
           ? current.filter(
-              (id) =>
-                id !==
-                skillId,
+              (id) => id !== skillId,
             )
           : [
               ...current,
@@ -122,14 +123,67 @@ export default function CreateEvent() {
 
 
   async function handleSubmit(
-    event:
-      React.FormEvent<HTMLFormElement>,
+    event: React.FormEvent<HTMLFormElement>,
   ) {
     event.preventDefault();
 
+    setError("");
+
+
+    const now = new Date();
+
+    const start =
+      new Date(startDate);
+
+    const end =
+      new Date(endDate);
+
+    const deadline =
+      new Date(registrationDeadline);
+
+
+    // =========================================
+    // Frontend date validation
+    // =========================================
+
+    if (start <= now) {
+      setError(
+        "The event start date must be in the future.",
+      );
+
+      return;
+    }
+
+
+    if (deadline <= now) {
+      setError(
+        "The registration deadline must be in the future.",
+      );
+
+      return;
+    }
+
+
+    if (end <= start) {
+      setError(
+        "The event end date must be after the start date.",
+      );
+
+      return;
+    }
+
+
+    if (deadline >= start) {
+      setError(
+        "The registration deadline must be before the event starts.",
+      );
+
+      return;
+    }
+
+
     try {
       setSubmitting(true);
-      setError("");
 
       await createEvent({
         title,
@@ -152,6 +206,7 @@ export default function CreateEvent() {
           selectedSkills,
       });
 
+
       navigate(
         "/dashboard/admin/events",
       );
@@ -160,7 +215,7 @@ export default function CreateEvent() {
       console.error(err);
 
       setError(
-        "Unable to create event. Make sure your NGO is verified and all dates are valid.",
+        "Unable to create event. Make sure your NGO is verified and all information is valid.",
       );
 
     } finally {
@@ -178,7 +233,13 @@ export default function CreateEvent() {
 
       <div className="mx-auto max-w-4xl space-y-6">
 
+
+        {/* =========================================
+            Header
+        ========================================= */}
+
         <div>
+
           <p className="text-xs font-semibold uppercase tracking-[0.16em] text-blue-600">
             New Opportunity
           </p>
@@ -191,16 +252,19 @@ export default function CreateEvent() {
             Create a new volunteer event
             for your NGO.
           </p>
+
         </div>
 
 
         <form
-          onSubmit={
-            handleSubmit
-          }
+          onSubmit={handleSubmit}
           className="space-y-6"
         >
 
+
+          {/* =========================================
+              Basic Information
+          ========================================= */}
 
           <section className="rounded-2xl border border-slate-300/60 bg-[#f4f7fa] p-6">
 
@@ -211,88 +275,87 @@ export default function CreateEvent() {
 
             <div className="mt-5 space-y-5">
 
+
               <div>
-                <label className="text-sm font-semibold text-slate-700">
+
+                <label
+                  htmlFor="event-title"
+                  className="text-sm font-semibold text-slate-700"
+                >
                   Event Title
                 </label>
 
                 <input
-                  value={
-                    title
-                  }
-                  onChange={(
-                    event,
-                  ) =>
+                  id="event-title"
+                  value={title}
+                  onChange={(event) =>
                     setTitle(
-                      event
-                        .target
-                        .value,
+                      event.target.value,
                     )
                   }
                   required
-                  className={
-                    inputClass
-                  }
+                  className={inputClass}
                 />
+
               </div>
 
 
               <div>
-                <label className="text-sm font-semibold text-slate-700">
+
+                <label
+                  htmlFor="event-description"
+                  className="text-sm font-semibold text-slate-700"
+                >
                   Description
                 </label>
 
                 <textarea
+                  id="event-description"
                   rows={5}
-                  value={
-                    description
-                  }
-                  onChange={(
-                    event,
-                  ) =>
+                  value={description}
+                  onChange={(event) =>
                     setDescription(
-                      event
-                        .target
-                        .value,
+                      event.target.value,
                     )
                   }
                   required
-                  className={
-                    inputClass
-                  }
+                  className={inputClass}
                 />
+
               </div>
 
 
               <div>
-                <label className="text-sm font-semibold text-slate-700">
+
+                <label
+                  htmlFor="event-location"
+                  className="text-sm font-semibold text-slate-700"
+                >
                   Location
                 </label>
 
                 <input
-                  value={
-                    location
-                  }
-                  onChange={(
-                    event,
-                  ) =>
+                  id="event-location"
+                  value={location}
+                  onChange={(event) =>
                     setLocation(
-                      event
-                        .target
-                        .value,
+                      event.target.value,
                     )
                   }
                   required
-                  className={
-                    inputClass
-                  }
+                  className={inputClass}
                 />
+
               </div>
 
             </div>
 
           </section>
 
+
+          {/* =========================================
+              Schedule & Capacity
+          ========================================= */}
 
           <section className="rounded-2xl border border-slate-300/60 bg-[#f4f7fa] p-6">
 
@@ -300,123 +363,187 @@ export default function CreateEvent() {
               Schedule & Capacity
             </h2>
 
+            <p className="mt-1 text-sm text-slate-500">
+              The registration deadline must
+              be before the event starts.
+            </p>
+
 
             <div className="mt-5 grid gap-5 md:grid-cols-2">
 
+
+              {/* Registration Deadline */}
+
               <div>
-                <label className="text-sm font-semibold text-slate-700">
+
+                <label
+                  htmlFor="registration-deadline"
+                  className="text-sm font-semibold text-slate-700"
+                >
                   Registration Deadline
                 </label>
 
                 <input
+                  id="registration-deadline"
                   type="datetime-local"
-                  value={
-                    registrationDeadline
+                  value={registrationDeadline}
+
+                  min={minimumDateTime}
+
+                  max={
+                    startDate || undefined
                   }
-                  onChange={(
-                    event,
-                  ) =>
+
+                  onChange={(event) =>
                     setRegistrationDeadline(
-                      event
-                        .target
-                        .value,
+                      event.target.value,
                     )
                   }
+
                   required
-                  className={
-                    inputClass
-                  }
+                  className={inputClass}
                 />
+
               </div>
 
 
+              {/* Capacity */}
+
               <div>
-                <label className="text-sm font-semibold text-slate-700">
+
+                <label
+                  htmlFor="volunteer-capacity"
+                  className="text-sm font-semibold text-slate-700"
+                >
                   Volunteer Capacity
                 </label>
 
                 <input
+                  id="volunteer-capacity"
                   type="number"
                   min="1"
-                  value={
-                    capacity
-                  }
-                  onChange={(
-                    event,
-                  ) =>
+
+                  value={capacity}
+
+                  onChange={(event) =>
                     setCapacity(
                       Number(
-                        event
-                          .target
-                          .value,
+                        event.target.value,
                       ),
                     )
                   }
+
                   required
-                  className={
-                    inputClass
-                  }
+                  className={inputClass}
                 />
+
               </div>
 
 
+              {/* Start */}
+
               <div>
-                <label className="text-sm font-semibold text-slate-700">
+
+                <label
+                  htmlFor="start-date"
+                  className="text-sm font-semibold text-slate-700"
+                >
                   Start Date
                 </label>
 
                 <input
+                  id="start-date"
                   type="datetime-local"
-                  value={
-                    startDate
-                  }
-                  onChange={(
-                    event,
-                  ) =>
+
+                  value={startDate}
+
+                  min={minimumDateTime}
+
+                  onChange={(event) => {
+                    const newStart =
+                      event.target.value;
+
                     setStartDate(
-                      event
-                        .target
-                        .value,
-                    )
-                  }
+                      newStart,
+                    );
+
+
+                    // If the selected end date
+                    // is no longer valid,
+                    // clear it.
+                    if (
+                      endDate &&
+                      new Date(endDate)
+                      <= new Date(newStart)
+                    ) {
+                      setEndDate("");
+                    }
+
+
+                    // If the deadline is
+                    // after the new start,
+                    // clear it.
+                    if (
+                      registrationDeadline &&
+                      new Date(
+                        registrationDeadline,
+                      ) >= new Date(newStart)
+                    ) {
+                      setRegistrationDeadline(
+                        "",
+                      );
+                    }
+                  }}
+
                   required
-                  className={
-                    inputClass
-                  }
+                  className={inputClass}
                 />
+
               </div>
 
 
+              {/* End */}
+
               <div>
-                <label className="text-sm font-semibold text-slate-700">
+
+                <label
+                  htmlFor="end-date"
+                  className="text-sm font-semibold text-slate-700"
+                >
                   End Date
                 </label>
 
                 <input
+                  id="end-date"
                   type="datetime-local"
-                  value={
-                    endDate
+
+                  value={endDate}
+
+                  min={
+                    startDate
+                    || minimumDateTime
                   }
-                  onChange={(
-                    event,
-                  ) =>
+
+                  onChange={(event) =>
                     setEndDate(
-                      event
-                        .target
-                        .value,
+                      event.target.value,
                     )
                   }
+
                   required
-                  className={
-                    inputClass
-                  }
+                  className={inputClass}
                 />
+
               </div>
 
             </div>
 
           </section>
 
+
+          {/* =========================================
+              Required Skills
+          ========================================= */}
 
           <section className="rounded-2xl border border-slate-300/60 bg-[#f4f7fa] p-6">
 
@@ -442,31 +569,32 @@ export default function CreateEvent() {
 
                   return (
                     <label
-                      key={
-                        skill.id
+                      key={skill.id}
+                      className={
+                        `flex cursor-pointer items-center gap-3 rounded-xl border p-3 ${
+                          selected
+                            ? "border-blue-300 bg-blue-100/70 text-blue-800"
+                            : "border-slate-300 bg-[#eaf0f5] text-slate-700"
+                        }`
                       }
-                      className={`flex cursor-pointer items-center gap-3 rounded-xl border p-3 ${
-                        selected
-                          ? "border-blue-300 bg-blue-100/70 text-blue-800"
-                          : "border-slate-300 bg-[#eaf0f5] text-slate-700"
-                      }`}
                     >
+
                       <input
                         type="checkbox"
-                        checked={
-                          selected
-                        }
+
+                        checked={selected}
+
                         onChange={() =>
                           toggleSkill(
                             skill.id,
                           )
                         }
+
                         className="accent-blue-600"
                       />
 
-                      {
-                        skill.name
-                      }
+                      {skill.name}
+
                     </label>
                   );
                 },
@@ -477,20 +605,30 @@ export default function CreateEvent() {
           </section>
 
 
+          {/* =========================================
+              Error
+          ========================================= */}
+
           {error && (
-            <div className="rounded-2xl bg-red-100/60 p-4 text-red-700">
+
+            <div className="rounded-2xl border border-red-200 bg-red-100/60 p-4 text-red-700">
               {error}
             </div>
+
           )}
 
+
+          {/* =========================================
+              Submit
+          ========================================= */}
 
           <div className="flex justify-end">
 
             <button
               type="submit"
-              disabled={
-                submitting
-              }
+
+              disabled={submitting}
+
               className="rounded-xl bg-blue-600 px-7 py-3 font-semibold text-white hover:bg-blue-700 disabled:opacity-50"
             >
               {submitting

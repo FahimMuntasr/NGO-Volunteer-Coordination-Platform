@@ -11,6 +11,7 @@ export async function login(
   username: string,
   password: string,
 ): Promise<LoginResponse> {
+
   const response =
     await api.post<LoginResponse>(
       "/api/auth/login/",
@@ -24,8 +25,26 @@ export async function login(
 }
 
 
+export async function logoutAccount(
+  token: string,
+): Promise<void> {
+
+  await api.post(
+    "/api/auth/logout/",
+    {},
+    {
+      headers: {
+        Authorization:
+          `Token ${token}`,
+      },
+    },
+  );
+}
+
+
 export async function getCurrentUser():
 Promise<User> {
+
   const response =
     await api.get<User>(
       "/api/auth/me/",
@@ -68,6 +87,7 @@ export type RegisterRequest = {
 export async function registerAccount(
   data: RegisterRequest,
 ): Promise<LoginResponse> {
+
   const response =
     await api.post<LoginResponse>(
       "/api/auth/register/",
@@ -86,6 +106,7 @@ export type PasswordResetResponse = {
 export async function requestPasswordReset(
   email: string,
 ): Promise<PasswordResetResponse> {
+
   const response =
     await api.post<PasswordResetResponse>(
       "/api/auth/password-reset/",
@@ -103,11 +124,13 @@ export async function confirmPasswordReset(
   token: string,
   newPassword: string,
 ): Promise<PasswordResetResponse> {
+
   const response =
     await api.post<PasswordResetResponse>(
       `/api/auth/password-reset/confirm/${uid}/${token}/`,
       {
-        new_password: newPassword,
+        new_password:
+          newPassword,
       },
     );
 

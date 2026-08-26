@@ -1,9 +1,21 @@
+from django.utils import timezone
 from rest_framework import serializers
 
-from .models import Event, Registration, Team, TeamMembership
+from .models import (
+    Event,
+    Registration,
+    Team,
+    TeamMembership,
+)
+
 from volunteering.models import Skill
 
+
+# =========================================
+# EVENT
+# =========================================
 class EventSerializer(serializers.ModelSerializer):
+
     ngo_name = serializers.CharField(
         source="ngo.name",
         read_only=True,
@@ -13,7 +25,7 @@ class EventSerializer(serializers.ModelSerializer):
         many=True,
         read_only=True,
     )
-    
+
     coordinator_username = serializers.CharField(
         source="coordinator.username",
         read_only=True,
@@ -22,6 +34,7 @@ class EventSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Event
+
         fields = [
             "id",
             "ngo",
@@ -39,7 +52,12 @@ class EventSerializer(serializers.ModelSerializer):
             "coordinator_username",
         ]
 
+
+# =========================================
+# EVENT CREATE
+# =========================================
 class EventCreateSerializer(serializers.ModelSerializer):
+
     required_skill_ids = serializers.PrimaryKeyRelatedField(
         queryset=Skill.objects.all(),
         many=True,
@@ -50,6 +68,7 @@ class EventCreateSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Event
+
         fields = [
             "id",
             "title",
@@ -63,15 +82,52 @@ class EventCreateSerializer(serializers.ModelSerializer):
             "status",
         ]
 
-        read_only_fields = ["id","status"]
+        read_only_fields = [
+            "id",
+            "status",
+        ]
 
     def validate(self, attrs):
+
         start_date = attrs.get("start_date")
         end_date = attrs.get("end_date")
+
         registration_deadline = attrs.get(
             "registration_deadline"
         )
 
+        now = timezone.now()
+
+        # Start date must be in the future.
+        if (
+            start_date
+            and start_date <= now
+        ):
+            raise serializers.ValidationError(
+                {
+                    "start_date": (
+                        "The event start date "
+                        "must be in the future."
+                    )
+                }
+            )
+
+        # Registration deadline must also
+        # still be in the future.
+        if (
+            registration_deadline
+            and registration_deadline <= now
+        ):
+            raise serializers.ValidationError(
+                {
+                    "registration_deadline": (
+                        "The registration deadline "
+                        "must be in the future."
+                    )
+                }
+            )
+
+        # End must be after start.
         if (
             start_date
             and end_date
@@ -86,6 +142,8 @@ class EventCreateSerializer(serializers.ModelSerializer):
                 }
             )
 
+        # Registration must close
+        # before the event begins.
         if (
             registration_deadline
             and start_date
@@ -101,8 +159,13 @@ class EventCreateSerializer(serializers.ModelSerializer):
             )
 
         return attrs
-        
+
+
+# =========================================
+# EVENT UPDATE
+# =========================================
 class EventUpdateSerializer(serializers.ModelSerializer):
+
     required_skill_ids = serializers.PrimaryKeyRelatedField(
         queryset=Skill.objects.all(),
         many=True,
@@ -113,6 +176,7 @@ class EventUpdateSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Event
+
         fields = [
             "title",
             "description",
@@ -125,6 +189,7 @@ class EventUpdateSerializer(serializers.ModelSerializer):
         ]
 
     def validate(self, attrs):
+
         start_date = attrs.get(
             "start_date",
             self.instance.start_date,
@@ -162,7 +227,12 @@ class EventUpdateSerializer(serializers.ModelSerializer):
 
         return attrs
 
+
+# =========================================
+# REGISTRATION
+# =========================================
 class RegistrationSerializer(serializers.ModelSerializer):
+
     event_title = serializers.CharField(
         source="event.title",
         read_only=True,
@@ -175,6 +245,7 @@ class RegistrationSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Registration
+
         fields = [
             "id",
             "event",
@@ -190,7 +261,14 @@ class RegistrationSerializer(serializers.ModelSerializer):
 
         read_only_fields = fields
 
-class TeamMembershipSerializer(serializers.ModelSerializer):
+
+# =========================================
+# TEAM MEMBERSHIP
+# =========================================
+class TeamMembershipSerializer(
+    serializers.ModelSerializer
+):
+
     volunteer_username = serializers.CharField(
         source="volunteer.user.username",
         read_only=True,
@@ -198,6 +276,7 @@ class TeamMembershipSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = TeamMembership
+
         fields = [
             "id",
             "volunteer",
@@ -206,10 +285,15 @@ class TeamMembershipSerializer(serializers.ModelSerializer):
         ]
 
 
+# =========================================
+# TEAM
+# =========================================
 class TeamSerializer(serializers.ModelSerializer):
+
     leader_username = serializers.CharField(
         source="leader.user.username",
         read_only=True,
+        allow_null=True,
     )
 
     memberships = TeamMembershipSerializer(
@@ -219,6 +303,7 @@ class TeamSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Team
+
         fields = [
             "id",
             "event",
@@ -227,4 +312,36 @@ class TeamSerializer(serializers.ModelSerializer):
             "leader_username",
             "memberships",
         ]
-        read_only_fields = ["event"]
+
+        read_only_fields = [
+            "event",
+        ]
+
+    def validate_leader(self, leader):
+
+        # Leader is optional.
+        if leader is None:
+            return leader
+
+        event = self.context.get("event")
+
+        # When serializing an existing team,
+        # no creation validation is needed.
+        if event is None:
+            return leader
+
+        approved_registration_exists = (
+            Registration.objects.filter(
+                event=event,
+                volunteer=leader,
+                status=Registration.Status.APPROVED,
+            ).exists()
+        )
+
+        if not approved_registration_exists:
+            raise serializers.ValidationError(
+                "The team leader must be an "
+                "approved volunteer for this event."
+            )
+
+        return leader

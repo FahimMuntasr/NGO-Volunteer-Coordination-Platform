@@ -479,9 +479,11 @@ class AssignCoordinatorView(APIView):
         )
 
 class EventTeamListCreateView(APIView):
+
     permission_classes = [IsAuthenticated]
 
     def get(self, request, event_id):
+
         event = get_object_or_404(
             Event.objects.select_related(
                 "ngo",
@@ -515,15 +517,18 @@ class EventTeamListCreateView(APIView):
             .order_by("id")
         )
 
+        serializer = TeamSerializer(
+            teams,
+            many=True,
+        )
+
         return Response(
-            TeamSerializer(
-                teams,
-                many=True,
-            ).data,
+            serializer.data,
             status=status.HTTP_200_OK,
         )
 
     def post(self, request, event_id):
+
         event = get_object_or_404(
             Event.objects.select_related(
                 "ngo",
@@ -547,7 +552,13 @@ class EventTeamListCreateView(APIView):
             )
 
         serializer = TeamSerializer(
-            data=request.data
+            data=request.data,
+
+            # The serializer now knows
+            # which event the team belongs to.
+            context={
+                "event": event
+            },
         )
 
         serializer.is_valid(
@@ -559,9 +570,7 @@ class EventTeamListCreateView(APIView):
         )
 
         return Response(
-            TeamSerializer(
-                team
-            ).data,
+            TeamSerializer(team).data,
             status=status.HTTP_201_CREATED,
         )
 
