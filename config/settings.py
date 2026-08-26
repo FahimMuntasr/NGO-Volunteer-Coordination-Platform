@@ -1,3 +1,4 @@
+
 """
 Django settings for config project.
 
@@ -11,6 +12,7 @@ https://docs.djangoproject.com/en/6.0/ref/settings/
 """
 
 import os
+import dj_database_url
 from pathlib import Path
 
 from dotenv import load_dotenv
@@ -39,6 +41,18 @@ ALLOWED_HOSTS = [
     if host.strip()
 ]
 
+RAILWAY_PUBLIC_DOMAIN = os.getenv(
+    "RAILWAY_PUBLIC_DOMAIN"
+)
+
+if (
+    RAILWAY_PUBLIC_DOMAIN
+    and RAILWAY_PUBLIC_DOMAIN not in ALLOWED_HOSTS
+):
+    ALLOWED_HOSTS.append(
+        RAILWAY_PUBLIC_DOMAIN
+    )
+
 # Application definition
 
 INSTALLED_APPS = [
@@ -59,10 +73,12 @@ INSTALLED_APPS = [
     "volunteering",
     "donations",
     "certificates",
+    "notifications"
 ]
 
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
+    "whitenoise.middleware.WhiteNoiseMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
 
     "corsheaders.middleware.CorsMiddleware",
@@ -97,13 +113,23 @@ WSGI_APPLICATION = "config.wsgi.application"
 # Database
 # https://docs.djangoproject.com/en/6.0/ref/settings/#databases
 
-DATABASES = {
-    "default": {
-        "ENGINE": "django.db.backends.sqlite3",
-        "NAME": BASE_DIR / "db.sqlite3",
-    }
-}
+DATABASE_URL = os.getenv("DATABASE_URL")
 
+if DATABASE_URL:
+    DATABASES = {
+        "default": dj_database_url.parse(
+            DATABASE_URL,
+            conn_max_age=600,
+            conn_health_checks=True,
+        )
+    }
+else:
+    DATABASES = {
+        "default": {
+            "ENGINE": "django.db.backends.sqlite3",
+            "NAME": BASE_DIR / "db.sqlite3",
+        }
+    }
 
 # Password validation
 # https://docs.djangoproject.com/en/6.0/ref/settings/#auth-password-validators
@@ -140,6 +166,19 @@ USE_TZ = True
 # https://docs.djangoproject.com/en/6.0/howto/static-files/
 
 STATIC_URL = "static/"
+STATIC_ROOT = BASE_DIR / "staticfiles"
+
+STORAGES = {
+    "default": {
+        "BACKEND": "django.core.files.storage.FileSystemStorage",
+    },
+    "staticfiles": {
+        "BACKEND": (
+            "whitenoise.storage."
+            "CompressedManifestStaticFilesStorage"
+        ),
+    },
+}
 
 AUTH_USER_MODEL = "accounts.User"
 
@@ -154,8 +193,58 @@ REST_FRAMEWORK = {
 }
 
 CORS_ALLOWED_ORIGINS = [
-    "http://localhost:5173",
-    "http://127.0.0.1:5173",
-    "http://localhost:3000",
-    "http://127.0.0.1:3000",
+    origin.strip()
+    for origin in os.getenv(
+        "CORS_ALLOWED_ORIGINS",
+        (
+            "http://localhost:5173,"
+            "http://127.0.0.1:5173,"
+            "http://localhost:3000,"
+            "http://127.0.0.1:3000"
+        ),
+    ).split(",")
+    if origin.strip()
 ]
+
+FRONTEND_URL = os.getenv(
+    "FRONTEND_URL",
+    "http://localhost:5173",
+)
+
+EMAIL_BACKEND = os.getenv(
+    "EMAIL_BACKEND",
+    "django.core.mail.backends.console.EmailBackend",
+)
+
+DEFAULT_FROM_EMAIL = os.getenv(
+    "DEFAULT_FROM_EMAIL",
+    "noreply@ngovolunteer.local",
+)
+
+PASSWORD_RESET_TIMEOUT = 3600
+
+SECURE_PROXY_SSL_HEADER = (
+    "HTTP_X_FORWARDED_PROTO",
+    "https",
+)
+
+# =========================================
+# Production Security
+# =========================================
+
+if not DEBUG:
+
+    # Railway serves the app through HTTPS.
+    SECURE_SSL_REDIRECT = True
+
+    # Cookies should only be sent over HTTPS.
+    SESSION_COOKIE_SECURE = True
+    CSRF_COOKIE_SECURE = True
+
+    # Tell browsers to prefer HTTPS.
+    SECURE_HSTS_SECONDS = 3600
+
+    # We are not forcing HSTS on subdomains
+    # because this is a student project.
+    SECURE_HSTS_INCLUDE_SUBDOMAINS = False
+    SECURE_HSTS_PRELOAD = False

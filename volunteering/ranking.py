@@ -108,8 +108,39 @@ class VolunteerRanker:
     def set_strategy(self, strategy):
         self.strategy = strategy
 
-    def display_ranking(self, volunteers):
+    def get_ranking(self, volunteers):
+        if self.strategy is None:
+            return []
 
+        ranked = sorted(
+            volunteers,
+            key=lambda volunteer: self.strategy.rank(volunteer),
+            reverse=True,
+        )
+
+        results = []
+
+        for position, volunteer in enumerate(
+            ranked,
+            start=1,
+        ):
+            results.append(
+                {
+                    "position": position,
+                    "name": volunteer.name,
+                    "skills": volunteer.skills,
+                    "completed_events": volunteer.completed_events,
+                    "total_hours": volunteer.total_hours,
+                    "score": round(
+                        self.strategy.rank(volunteer),
+                        2,
+                    ),
+                }
+            )
+
+        return results
+
+    def display_ranking(self, volunteers):
         if self.strategy is None:
             print("No ranking strategy selected.")
             return
@@ -117,12 +148,20 @@ class VolunteerRanker:
         ranked = sorted(
             volunteers,
             key=lambda volunteer: self.strategy.rank(volunteer),
-            reverse=True
+            reverse=True,
         )
 
-        for position, volunteer in enumerate(ranked, start=1):
+        for position, volunteer in enumerate(
+            ranked,
+            start=1,
+        ):
             score = self.strategy.rank(volunteer)
-            print(f"{position}. {volunteer.name:<10} Score: {score:.2f}")
+
+            print(
+                f"{position}. "
+                f"{volunteer.name:<10} "
+                f"Score: {score:.2f}"
+            )
 
 
 # ==========================================
@@ -161,3 +200,4 @@ if __name__ == "__main__":
 
         ranker.set_strategy(strategy)
         ranker.display_ranking(volunteers)
+        

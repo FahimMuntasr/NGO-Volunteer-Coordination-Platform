@@ -7,6 +7,7 @@ from rest_framework.generics import (
     CreateAPIView,
     ListAPIView,
     RetrieveAPIView,
+    UpdateAPIView,
 )
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
@@ -14,12 +15,34 @@ from rest_framework.views import APIView
 
 from accounts.models import User
 from volunteering.models import VolunteerProfile
+from events.facades import EventCompletionFacade
 
-from .models import Event, Registration
-from .serializers import (
+from events.models import Event, Registration, Team, TeamMembership
+from events.services import ProxyEventService
+from events.serializers import (
     EventCreateSerializer,
     EventSerializer,
+    EventUpdateSerializer,
     RegistrationSerializer,
+    TeamSerializer,
+    TeamMembershipSerializer,
+)
+
+from notifications.domain_events import (
+    CoordinatorAssigned,
+    EventPublished,
+    RegistrationCreated,
+    RegistrationStatusChanged,
+    TeamMemberAssigned,
+)
+from notifications.observers import notification_subject
+
+from events.registration_decorators import (
+    BasicRegistrationService,
+    CapacityDecorator,
+    DuplicateRegistrationDecorator,
+    EventOpenDecorator,
+    RegistrationDeadlineDecorator,
 )
 
 def user_can_manage_event(user, event):
@@ -29,56 +52,161 @@ def user_can_manage_event(user, event):
         and event.ngo.administrator_id == user.id
     )
 
+def user_can_coordinate_event(user, event):
+    return (
+        user_can_manage_event(user, event)
+        or (
+            user.role == User.Role.COORDINATOR
+            and event.coordinator_id == user.id
+        )
+    )
 
 class EventListView(ListAPIView):
+    """Return events available to the authenticated user."""
+
     serializer_class = EventSerializer
+    permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
+        proxy = ProxyEventService()
+
         return (
-            Event.objects
-            .select_related("ngo")
+            proxy
+            .get_events(self.request.user)
+            .select_related("ngo", "created_by", "coordinator")
             .prefetch_related("required_skills")
             .order_by("start_date")
         )
 
+
 class EventDetailView(RetrieveAPIView):
-    queryset = (
-        Event.objects
-        .select_related("ngo", "created_by")
-        .prefetch_related("required_skills")
-    )
+    """Return an event only when it is visible to the current user."""
 
     serializer_class = EventSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        proxy = ProxyEventService()
+
+        return (
+            proxy
+            .get_events(self.request.user)
+            .select_related("ngo", "created_by", "coordinator")
+            .prefetch_related("required_skills")
+        )
 
 
 class EventCreateView(CreateAPIView):
     serializer_class = EventCreateSerializer
     permission_classes = [IsAuthenticated]
 
-    def perform_create(self, serializer):
-        user = self.request.user
+    def create(self, request, *args, **kwargs):
+        user = request.user
+        proxy = ProxyEventService()
 
+        # 1. Let Proxy handles the permission check FIRST
         if user.role != User.Role.NGO_ADMIN:
-            raise PermissionDenied(
-                "Only NGO administrators can create events."
-            )
+            # Invoking the proxy with raw data triggers its role check and raises PermissionDenied
+            proxy.create_event(user, request.data)
 
+        # 2. NGO relationship check
         ngo = user.managed_ngos.first()
-
         if ngo is None:
             raise ValidationError(
+                {"ngo": "This administrator is not connected to an NGO."}
+            )
+
+        # 3. Serializer validation SECOND
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        # 4. Delegate actual creation to Proxy
+        event_data = dict(serializer.validated_data)
+        event_data["ngo"] = ngo
+        event_data["created_by"] = user
+
+        event = proxy.create_event(user, event_data)
+
+        headers = self.get_success_headers(serializer.data)
+        return Response(
+            EventSerializer(event).data,
+            status=status.HTTP_201_CREATED,
+            headers=headers,
+        )
+
+
+class EventUpdateView(UpdateAPIView):
+    queryset = Event.objects.select_related(
+        "ngo"
+    )
+
+    serializer_class = (
+        EventUpdateSerializer
+    )
+
+    permission_classes = [
+        IsAuthenticated
+    ]
+
+    def get_object(self):
+        event = (
+            super().get_object()
+        )
+
+        # Only the NGO administrator
+        # who owns this event may edit it.
+        if not user_can_manage_event(
+            self.request.user,
+            event,
+        ):
+            raise PermissionDenied(
+                (
+                    "Only this NGO's "
+                    "administrator can "
+                    "edit this event."
+                )
+            )
+
+        # Completed and cancelled events
+        # are final and must not change.
+        if event.status in [
+            Event.Status.COMPLETED,
+            Event.Status.CANCELLED,
+        ]:
+            raise ValidationError(
                 {
-                    "ngo": (
-                        "This administrator is not connected "
-                        "to an NGO."
+                    "detail": (
+                        "Completed or cancelled "
+                        "events cannot be edited."
                     )
                 }
             )
 
-        serializer.save(
-            ngo=ngo,
-            created_by=user,
+        return event
+
+    def perform_update(
+        self,
+        serializer,
+    ):
+        previous_status = (
+            serializer.instance.status
         )
+
+        event = (
+            serializer.save()
+        )
+
+        if (
+            previous_status
+            != Event.Status.OPEN
+            and event.status
+            == Event.Status.OPEN
+        ):
+            notification_subject.notify(
+                EventPublished(
+                    event
+                )
+            )
 
 class EventRegistrationView(APIView):
     permission_classes = [IsAuthenticated]
@@ -113,60 +241,23 @@ class EventRegistrationView(APIView):
 
         event = get_object_or_404(Event, pk=pk)
 
-        # Registration is allowed only for open events.
-        if event.status != Event.Status.OPEN:
-            return Response(
-                {
-                    "detail": (
-                        "This event is not open for registration."
+        registration_service = EventOpenDecorator(
+        RegistrationDeadlineDecorator(
+            DuplicateRegistrationDecorator(
+                CapacityDecorator(
+                    BasicRegistrationService()
                     )
-                },
-                status=status.HTTP_400_BAD_REQUEST,
+                )
             )
+        )
 
-        # Prevent registration after the deadline.
-        if timezone.now() >= event.registration_deadline:
-            return Response(
-                {
-                    "detail": (
-                        "The registration deadline has passed."
-                    )
-                },
-                status=status.HTTP_400_BAD_REQUEST,
-            )
+        registration = registration_service.register(
+        volunteer_profile,
+        event,
+        )
 
-        # Prevent duplicate registration.
-        already_registered = Registration.objects.filter(
-            event=event,
-            volunteer=volunteer_profile,
-        ).exists()
-
-        if already_registered:
-            return Response(
-                {
-                    "detail": (
-                        "You have already registered for this event."
-                    )
-                },
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-
-        # Stop registration when all places are already approved.
-        approved_count = event.registrations.filter(
-            status=Registration.Status.APPROVED,
-        ).count()
-
-        if approved_count >= event.volunteer_capacity:
-            return Response(
-                {
-                    "detail": "This event has reached its capacity."
-                },
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-
-        registration = Registration.objects.create(
-            event=event,
-            volunteer=volunteer_profile,
+        notification_subject.notify(
+            RegistrationCreated(registration)
         )
 
         return Response(
@@ -183,7 +274,7 @@ class EventRegistrationListView(APIView):
             pk=event_id,
         )
 
-        if not user_can_manage_event(request.user, event):
+        if not user_can_coordinate_event(request.user, event):
             return Response(
                 {
                     "detail": (
@@ -269,6 +360,10 @@ class RegistrationApproveView(APIView):
             ]
         )
 
+        notification_subject.notify(
+            RegistrationStatusChanged(registration)
+        )
+
         return Response(
             {
                 "message": "Registration approved successfully.",
@@ -324,6 +419,10 @@ class RegistrationRejectView(APIView):
             ]
         )
 
+        notification_subject.notify(
+            RegistrationStatusChanged(registration)
+        )
+
         return Response(
             {
                 "message": "Registration rejected successfully.",
@@ -331,5 +430,432 @@ class RegistrationRejectView(APIView):
                     registration
                 ).data,
             },
+            status=status.HTTP_200_OK,
+        )
+
+class AssignCoordinatorView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, event_id):
+        event = get_object_or_404(
+            Event.objects.select_related("ngo"),
+            pk=event_id,
+        )
+
+        if not user_can_manage_event(request.user, event):
+            return Response(
+                {
+                    "detail": (
+                        "Only this NGO's administrator can "
+                        "assign a coordinator."
+                    )
+                },
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        coordinator_id = request.data.get("coordinator_id")
+
+        coordinator = get_object_or_404(
+            User,
+            pk=coordinator_id,
+            role=User.Role.COORDINATOR,
+        )
+
+        event.coordinator = coordinator
+        event.save(update_fields=["coordinator"])
+
+        notification_subject.notify(CoordinatorAssigned(event))
+
+        return Response(
+            {
+                "message": "Coordinator assigned successfully.",
+                "event_id": event.id,
+                "coordinator": {
+                    "id": coordinator.id,
+                    "username": coordinator.username,
+                },
+            },
+            status=status.HTTP_200_OK,
+        )
+
+class EventTeamListCreateView(APIView):
+
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, event_id):
+
+        event = get_object_or_404(
+            Event.objects.select_related(
+                "ngo",
+                "coordinator",
+            ),
+            pk=event_id,
+        )
+
+        if not user_can_coordinate_event(
+            request.user,
+            event,
+        ):
+            return Response(
+                {
+                    "detail": (
+                        "You do not have permission "
+                        "to view teams for this event."
+                    )
+                },
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        teams = (
+            event.teams
+            .select_related(
+                "leader__user"
+            )
+            .prefetch_related(
+                "memberships__volunteer__user"
+            )
+            .order_by("id")
+        )
+
+        serializer = TeamSerializer(
+            teams,
+            many=True,
+        )
+
+        return Response(
+            serializer.data,
+            status=status.HTTP_200_OK,
+        )
+
+    def post(self, request, event_id):
+
+        event = get_object_or_404(
+            Event.objects.select_related(
+                "ngo",
+                "coordinator",
+            ),
+            pk=event_id,
+        )
+
+        if not user_can_coordinate_event(
+            request.user,
+            event,
+        ):
+            return Response(
+                {
+                    "detail": (
+                        "You cannot create teams "
+                        "for this event."
+                    )
+                },
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        serializer = TeamSerializer(
+            data=request.data,
+
+            # The serializer now knows
+            # which event the team belongs to.
+            context={
+                "event": event
+            },
+        )
+
+        serializer.is_valid(
+            raise_exception=True
+        )
+
+        team = serializer.save(
+            event=event
+        )
+
+        return Response(
+            TeamSerializer(team).data,
+            status=status.HTTP_201_CREATED,
+        )
+
+class AddTeamMemberView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, team_id):
+        team = get_object_or_404(
+            Team.objects.select_related("event__ngo"),
+            pk=team_id,
+        )
+
+        event = team.event
+
+        if not user_can_coordinate_event(request.user, event):
+            return Response(
+                {"detail": "You cannot manage this team."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        volunteer_id = request.data.get("volunteer_id")
+        assigned_task = request.data.get(
+            "assigned_task",
+            "",
+        )
+
+        registration = get_object_or_404(
+            Registration,
+            event=event,
+            volunteer_id=volunteer_id,
+            status=Registration.Status.APPROVED,
+        )
+
+        already_assigned = TeamMembership.objects.filter(
+            team__event=event,
+            volunteer=registration.volunteer,
+        ).exists()
+
+        if already_assigned:
+            return Response(
+                {
+                    "detail": (
+                        "This volunteer is already assigned "
+                        "to a team for this event."
+                    )
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        membership = TeamMembership.objects.create(
+            team=team,
+            volunteer=registration.volunteer,
+            assigned_task=assigned_task,
+        )
+
+        notification_subject.notify(
+            TeamMemberAssigned(membership)
+        )
+
+        return Response(
+            TeamMembershipSerializer(membership).data,
+            status=status.HTTP_201_CREATED,
+        )
+
+class RegistrationAttendanceView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, pk):
+        registration = get_object_or_404(
+            Registration.objects.select_related(
+                "event__ngo"
+            ),
+            pk=pk,
+        )
+
+        event = registration.event
+
+        if not user_can_coordinate_event(request.user, event):
+            return Response(
+                {
+                    "detail": (
+                        "You cannot mark attendance "
+                        "for this event."
+                    )
+                },
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        if registration.status != Registration.Status.APPROVED:
+            return Response(
+                {
+                    "detail": (
+                        "Attendance can only be marked "
+                        "for approved volunteers."
+                    )
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        attendance_status = request.data.get(
+            "attendance_status"
+        )
+
+        allowed_statuses = [
+            Registration.AttendanceStatus.PRESENT,
+            Registration.AttendanceStatus.ABSENT,
+            Registration.AttendanceStatus.EXCUSED,
+        ]
+
+        if attendance_status not in allowed_statuses:
+            return Response(
+                {
+                    "detail": (
+                        "Attendance must be PRESENT, "
+                        "ABSENT, or EXCUSED."
+                    )
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        registration.attendance_status = attendance_status
+
+        registration.save(
+            update_fields=["attendance_status"]
+        )
+
+        return Response(
+            RegistrationSerializer(registration).data,
+            status=status.HTTP_200_OK,
+        )
+
+class EventOpenView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, event_id):
+        event = get_object_or_404(
+            Event.objects.select_related("ngo"),
+            pk=event_id,
+        )
+
+        if not user_can_manage_event(request.user, event):
+            return Response(
+                {
+                    "detail": (
+                        "You do not have permission to open this event."
+                    )
+                },
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        if event.status != Event.Status.DRAFT:
+            return Response(
+                {
+                    "detail": (
+                        "Only draft events can be opened."
+                    )
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        event.status = Event.Status.OPEN
+        event.save(
+            update_fields=["status"]
+        )
+
+        notification_subject.notify(
+            EventPublished(event)
+        )
+
+        return Response(
+            {
+                "message": "Event opened successfully.",
+                "event": EventSerializer(event).data,
+            },
+            status=status.HTTP_200_OK,
+        )
+
+
+class EventStartView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, event_id):
+        event = get_object_or_404(
+            Event.objects.select_related("ngo"),
+            pk=event_id,
+        )
+
+        if not user_can_manage_event(request.user, event):
+            return Response(
+                {
+                    "detail": (
+                        "You do not have permission to start this event."
+                    )
+                },
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        if event.status != Event.Status.OPEN:
+            return Response(
+                {
+                    "detail": (
+                        "Only open events can be started."
+                    )
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        event.status = Event.Status.IN_PROGRESS
+        event.save(update_fields=["status"])
+
+        return Response(
+            {
+                "message": "Event started successfully.",
+                "event": EventSerializer(event).data,
+            },
+            status=status.HTTP_200_OK,
+        )
+
+
+class EventCancelView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, event_id):
+        event = get_object_or_404(
+            Event.objects.select_related("ngo"),
+            pk=event_id,
+        )
+
+        if not user_can_manage_event(request.user, event):
+            return Response(
+                {
+                    "detail": (
+                        "You do not have permission to cancel this event."
+                    )
+                },
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        if event.status not in [
+            Event.Status.DRAFT,
+            Event.Status.OPEN,
+        ]:
+            return Response(
+                {
+                    "detail": (
+                        "Only draft or open events can be cancelled."
+                    )
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        event.status = Event.Status.CANCELLED
+        event.save(update_fields=["status"])
+
+        return Response(
+            {
+                "message": "Event cancelled successfully.",
+                "event": EventSerializer(event).data,
+            },
+            status=status.HTTP_200_OK,
+        )
+        
+class EventCompleteView(APIView):
+
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, event_id):
+
+        event = get_object_or_404(
+            Event.objects.select_related("ngo"),
+            pk=event_id,
+        )
+
+        # =========================================
+        # CLIENT
+        # =========================================
+
+        facade = EventCompletionFacade()
+
+        result = facade.complete_event(
+            event,
+            request.user,
+        )
+
+        return Response(
+            result,
             status=status.HTTP_200_OK,
         )
