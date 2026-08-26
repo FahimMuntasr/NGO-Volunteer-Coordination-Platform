@@ -5,6 +5,7 @@ from django.utils import timezone
 
 from accounts.models import User
 from certificates.models import Certificate
+from donations.models import Donation
 from events.models import Event, Registration
 from organizations.models import NGO
 from volunteering.models import VolunteerProfile
@@ -12,6 +13,9 @@ from volunteering.models import VolunteerProfile
 from .domain_events import (
     CertificateIssued,
     CoordinatorAssigned,
+    CoordinatorRemoved,
+    DonationAcknowledged,
+    DonationReceived,
     EventPublished,
     EventReminderDue,
     RegistrationCreated,
@@ -20,6 +24,7 @@ from .domain_events import (
 from .models import Notification
 from .observers import (
     CoordinatorNotificationObserver,
+    DonorNotificationObserver,
     NGOAdministratorNotificationObserver,
     NotificationSubject,
     Observer,
@@ -228,6 +233,131 @@ class ObserverPatternTests(TestCase):
 
         self.assertEqual(notification.recipient, self.volunteer.user)
         self.assertEqual(notification.certificate, certificate)
+
+    def test_donor_is_notified_when_donation_is_sent(self):
+        donor_user = User.objects.create_user(
+            username="donor_one",
+            password="test-password",
+            role=User.Role.DONOR,
+        )
+
+        donation = Donation.objects.create(
+            ngo=self.ngo,
+            donor=donor_user,
+            donor_name="Donor One",
+            amount="50.00",
+        )
+
+        subject = NotificationSubject()
+        subject.attach(DonorNotificationObserver())
+
+        subject.notify(DonationReceived(donation))
+
+        notification = Notification.objects.get(
+            notification_type=Notification.Type.DONATION_SENT,
+        )
+
+        self.assertEqual(notification.recipient, donor_user)
+        self.assertEqual(notification.donation, donation)
+
+    def test_donor_is_notified_when_donation_is_acknowledged(self):
+        donor_user = User.objects.create_user(
+            username="donor_two",
+            password="test-password",
+            role=User.Role.DONOR,
+        )
+
+        donation = Donation.objects.create(
+            ngo=self.ngo,
+            donor=donor_user,
+            donor_name="Donor Two",
+            amount="75.00",
+        )
+
+        subject = NotificationSubject()
+        subject.attach(DonorNotificationObserver())
+
+        subject.notify(DonationAcknowledged(donation))
+
+        notification = Notification.objects.get(
+            notification_type=Notification.Type.DONATION_ACKNOWLEDGED,
+        )
+
+        self.assertEqual(notification.recipient, donor_user)
+        self.assertEqual(notification.donation, donation)
+
+    def test_donation_received_does_not_notify_anonymous_donor(self):
+        donation = Donation.objects.create(
+            ngo=self.ngo,
+            donor=None,
+            donor_name="Anonymous",
+            amount="10.00",
+        )
+
+        subject = NotificationSubject()
+        subject.attach(DonorNotificationObserver())
+
+        subject.notify(DonationReceived(donation))
+
+        self.assertFalse(
+            Notification.objects.filter(
+                notification_type=Notification.Type.DONATION_SENT,
+            ).exists()
+        )
+
+    def test_previous_coordinator_is_notified_when_removed(self):
+        coordinator_user = User.objects.create_user(
+            username="coordinator_removed",
+            password="test-password",
+            role=User.Role.COORDINATOR,
+        )
+
+        subject = NotificationSubject()
+        subject.attach(CoordinatorNotificationObserver())
+
+        subject.notify(
+            CoordinatorRemoved(
+                event=self.event,
+                previous_coordinator=coordinator_user,
+                reason="Reassigned for load balancing.",
+            )
+        )
+
+        notification = Notification.objects.get(
+            notification_type=Notification.Type.COORDINATOR_REMOVED,
+        )
+
+        self.assertEqual(notification.recipient, coordinator_user)
+        self.assertEqual(
+            notification.message,
+            "Reassigned for load balancing.",
+        )
+
+    def test_coordinator_reassignment_notifies_a_second_time(self):
+        # A coordinator can legitimately be assigned to the same event
+        # more than once over time (assigned, removed, reassigned) -
+        # each assignment should produce its own notification.
+        coordinator_user = User.objects.create_user(
+            username="coordinator_reassigned",
+            password="test-password",
+            role=User.Role.COORDINATOR,
+        )
+
+        self.event.coordinator = coordinator_user
+        self.event.save(update_fields=["coordinator"])
+
+        subject = NotificationSubject()
+        subject.attach(CoordinatorNotificationObserver())
+
+        subject.notify(CoordinatorAssigned(self.event))
+        subject.notify(CoordinatorAssigned(self.event))
+
+        notifications = Notification.objects.filter(
+            recipient=coordinator_user,
+            notification_type=Notification.Type.COORDINATOR_ASSIGNED,
+        )
+
+        self.assertEqual(notifications.count(), 2)
 
 
 class StrategySwapTests(TestCase):

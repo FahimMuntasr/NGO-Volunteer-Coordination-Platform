@@ -36,6 +36,7 @@ from .registration_decorators import (
 from accounts.models import User
 from events.models import Event, Registration
 from events.services import ProxyEventService, RealEventService
+from notifications.models import Notification
 from volunteering.models import VolunteerProfile
 
 
@@ -122,6 +123,56 @@ class EventCreationTests(APITestCase):
         event = Event.objects.get(pk=response.data["id"])
 
         self.assertIsNone(event.coordinator)
+
+    def test_ngo_admin_can_assign_coordinator_during_creation(self):
+        coordinator = User.objects.create_user(
+            username="coordinator1",
+            password="test123",
+            role=User.Role.COORDINATOR,
+        )
+
+        self.client.force_authenticate(user=self.admin)
+
+        response = self.client.post(
+            reverse("event-create"),
+            {
+                **self.valid_data,
+                "coordinator_id": coordinator.id,
+            },
+            format="json",
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_201_CREATED,
+        )
+
+        event = Event.objects.get(pk=response.data["id"])
+
+        self.assertEqual(event.coordinator, coordinator)
+
+    def test_only_a_coordinator_role_user_can_be_assigned_at_creation(self):
+        non_coordinator = User.objects.create_user(
+            username="volunteer2",
+            password="test123",
+            role=User.Role.VOLUNTEER,
+        )
+
+        self.client.force_authenticate(user=self.admin)
+
+        response = self.client.post(
+            reverse("event-create"),
+            {
+                **self.valid_data,
+                "coordinator_id": non_coordinator.id,
+            },
+            format="json",
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_400_BAD_REQUEST,
+        )
 
     def test_volunteer_cannot_create_event(self):
         self.client.force_authenticate(
@@ -1028,7 +1079,135 @@ class CoordinatorAssignmentTests(APITestCase):
         self.assertIsNone(
             self.event.coordinator
         )
-        
+
+    def test_reassigning_a_coordinator_requires_a_reason(self):
+        self.event.coordinator = self.coordinator
+        self.event.save(update_fields=["coordinator"])
+
+        new_coordinator = User.objects.create_user(
+            username="coordinator2",
+            password="test123",
+            role=User.Role.COORDINATOR,
+        )
+
+        self.client.force_authenticate(user=self.admin)
+
+        response = self.client.post(
+            reverse(
+                "assign-coordinator",
+                args=[self.event.id],
+            ),
+            {
+                "coordinator_id": new_coordinator.id,
+            },
+            format="json",
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_400_BAD_REQUEST,
+        )
+
+        self.event.refresh_from_db()
+
+        self.assertEqual(
+            self.event.coordinator,
+            self.coordinator,
+        )
+
+    def test_reassigning_notifies_both_old_and_new_coordinator(self):
+        self.event.coordinator = self.coordinator
+        self.event.save(update_fields=["coordinator"])
+
+        new_coordinator = User.objects.create_user(
+            username="coordinator2",
+            password="test123",
+            role=User.Role.COORDINATOR,
+        )
+
+        self.client.force_authenticate(user=self.admin)
+
+        response = self.client.post(
+            reverse(
+                "assign-coordinator",
+                args=[self.event.id],
+            ),
+            {
+                "coordinator_id": new_coordinator.id,
+                "reason": (
+                    "Reassigning for load balancing - the new "
+                    "coordinator lives closer to the venue."
+                ),
+            },
+            format="json",
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_200_OK,
+        )
+
+        self.event.refresh_from_db()
+
+        self.assertEqual(
+            self.event.coordinator,
+            new_coordinator,
+        )
+
+        removed_notification = Notification.objects.get(
+            recipient=self.coordinator,
+            notification_type=(
+                Notification.Type.COORDINATOR_REMOVED
+            ),
+        )
+
+        self.assertIn(
+            "load balancing",
+            removed_notification.message,
+        )
+
+        assigned_notification = Notification.objects.get(
+            recipient=new_coordinator,
+            notification_type=(
+                Notification.Type.COORDINATOR_ASSIGNED
+            ),
+        )
+
+        self.assertEqual(
+            assigned_notification.event,
+            self.event,
+        )
+
+    def test_reassigning_same_coordinator_is_a_no_op(self):
+        self.event.coordinator = self.coordinator
+        self.event.save(update_fields=["coordinator"])
+
+        self.client.force_authenticate(user=self.admin)
+
+        response = self.client.post(
+            reverse(
+                "assign-coordinator",
+                args=[self.event.id],
+            ),
+            {
+                "coordinator_id": self.coordinator.id,
+            },
+            format="json",
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_200_OK,
+        )
+
+        self.assertFalse(
+            Notification.objects.filter(
+                notification_type=(
+                    Notification.Type.COORDINATOR_REMOVED
+                ),
+            ).exists()
+        )
+
     def test_assigned_coordinator_can_view_registrations(self):
         self.event.coordinator = self.coordinator
         self.event.save(
@@ -2650,6 +2829,24 @@ class EventBuilderTests(TestCase):
         self.assertEqual(event.status, "OPEN")
         self.assertEqual(event.required_skills.count(), 1)
         self.assertEqual(event.coordinator, self.coordinator)
+
+    def test_unlimited_capacity_recipe(self):
+        director = EventDirector()
+        director.set_builder(PublishedEventBuilder())
+
+        event = director.build_event_without_skills(
+            capacity_mode="UNLIMITED",
+            volunteer_capacity=None,
+            **{
+                key: value
+                for key, value in self.event_data.items()
+                if key != "volunteer_capacity"
+            },
+        )
+
+        self.assertEqual(event.status, "OPEN")
+        self.assertEqual(event.capacity_mode, "UNLIMITED")
+        self.assertIsNone(event.volunteer_capacity)
 
     def test_assigned_event_without_skills_recipe(self):
         director = EventDirector()

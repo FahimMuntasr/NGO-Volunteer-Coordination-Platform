@@ -19,9 +19,18 @@ class Notification(models.Model):
         EVENT_REMINDER = "EVENT_REMINDER", "Event Reminder"
         TEAM_ASSIGNED = "TEAM_ASSIGNED", "Team Assigned"
         DONATION_RECEIVED = "DONATION_RECEIVED", "Donation Received"
+        DONATION_SENT = "DONATION_SENT", "Donation Sent"
+        DONATION_ACKNOWLEDGED = (
+            "DONATION_ACKNOWLEDGED",
+            "Donation Acknowledged",
+        )
         COORDINATOR_ASSIGNED = (
             "COORDINATOR_ASSIGNED",
             "Coordinator Assigned",
+        )
+        COORDINATOR_REMOVED = (
+            "COORDINATOR_REMOVED",
+            "Coordinator Removed",
         )
         CERTIFICATE_ISSUED = (
             "CERTIFICATE_ISSUED",

@@ -57,9 +57,13 @@ class RealEventService(AbstractEventService):
             registration_deadline=event_data[
                 "registration_deadline"
             ],
-            volunteer_capacity=event_data[
+            volunteer_capacity=event_data.get(
                 "volunteer_capacity"
-            ],
+            ),
+            capacity_mode=event_data.get(
+                "capacity_mode",
+                Event.CapacityMode.FIXED,
+            ),
         )
 
         # Pick the recipe that matches what was supplied: whether a

@@ -27,7 +27,12 @@ class EventBuilder(ABC):
         self._event_data["registration_deadline"] = registration_deadline
 
     def set_capacity(self, volunteer_capacity):
+        self._event_data["capacity_mode"] = Event.CapacityMode.FIXED
         self._event_data["volunteer_capacity"] = volunteer_capacity
+
+    def set_unlimited_capacity(self):
+        self._event_data["capacity_mode"] = Event.CapacityMode.UNLIMITED
+        self._event_data["volunteer_capacity"] = None
 
     def set_required_skills(self, required_skills):
         self._required_skills = list(required_skills)
@@ -66,6 +71,12 @@ class EventDirector:
     def set_builder(self, builder):
         self.builder = builder
 
+    def _set_capacity(self, capacity_mode, volunteer_capacity):
+        if capacity_mode == Event.CapacityMode.UNLIMITED:
+            self.builder.set_unlimited_capacity()
+        else:
+            self.builder.set_capacity(volunteer_capacity)
+
     def build_full_event(
         self,
         *,
@@ -79,6 +90,7 @@ class EventDirector:
         registration_deadline,
         volunteer_capacity,
         required_skills,
+        capacity_mode=Event.CapacityMode.FIXED,
     ):
         self.builder.reset()
         self.builder.set_ownership(ngo, created_by)
@@ -88,7 +100,7 @@ class EventDirector:
             end_date,
             registration_deadline,
         )
-        self.builder.set_capacity(volunteer_capacity)
+        self._set_capacity(capacity_mode, volunteer_capacity)
         self.builder.set_required_skills(required_skills)
         self.builder.set_status()
 
@@ -108,6 +120,7 @@ class EventDirector:
         registration_deadline,
         volunteer_capacity,
         required_skills,
+        capacity_mode=Event.CapacityMode.FIXED,
     ):
         self.builder.reset()
         self.builder.set_ownership(ngo, created_by)
@@ -117,7 +130,7 @@ class EventDirector:
             end_date,
             registration_deadline,
         )
-        self.builder.set_capacity(volunteer_capacity)
+        self._set_capacity(capacity_mode, volunteer_capacity)
         self.builder.set_required_skills(required_skills)
         self.builder.assign_coordinator(coordinator)
         self.builder.set_status()
@@ -136,6 +149,7 @@ class EventDirector:
         end_date,
         registration_deadline,
         volunteer_capacity,
+        capacity_mode=Event.CapacityMode.FIXED,
     ):
         self.builder.reset()
         self.builder.set_ownership(ngo, created_by)
@@ -145,7 +159,7 @@ class EventDirector:
             end_date,
             registration_deadline,
         )
-        self.builder.set_capacity(volunteer_capacity)
+        self._set_capacity(capacity_mode, volunteer_capacity)
         self.builder.set_status()
 
         return self.builder.build()
@@ -163,6 +177,7 @@ class EventDirector:
         end_date,
         registration_deadline,
         volunteer_capacity,
+        capacity_mode=Event.CapacityMode.FIXED,
     ):
         self.builder.reset()
         self.builder.set_ownership(ngo, created_by)
@@ -172,7 +187,7 @@ class EventDirector:
             end_date,
             registration_deadline,
         )
-        self.builder.set_capacity(volunteer_capacity)
+        self._set_capacity(capacity_mode, volunteer_capacity)
         self.builder.assign_coordinator(coordinator)
         self.builder.set_status()
 

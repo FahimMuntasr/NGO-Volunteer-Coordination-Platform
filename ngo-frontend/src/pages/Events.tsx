@@ -456,7 +456,9 @@ export default function Events() {
 
                         <span>
                           {
-                            event.volunteer_capacity
+                            event.capacity_mode === "UNLIMITED"
+                              ? "Unlimited"
+                              : event.volunteer_capacity
                           }{" "}
                           volunteer capacity
                         </span>

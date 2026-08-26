@@ -30,6 +30,7 @@ from events.serializers import (
 
 from notifications.domain_events import (
     CoordinatorAssigned,
+    CoordinatorRemoved,
     EventPublished,
     RegistrationCreated,
     RegistrationStatusChanged,
@@ -126,6 +127,9 @@ class EventCreateView(CreateAPIView):
         event_data["created_by"] = user
 
         event = proxy.create_event(user, event_data)
+
+        if event.coordinator_id:
+            notification_subject.notify(CoordinatorAssigned(event))
 
         headers = self.get_success_headers(serializer.data)
         return Response(
@@ -340,7 +344,10 @@ class RegistrationApproveView(APIView):
             status=Registration.Status.APPROVED,
         ).count()
 
-        if approved_count >= event.volunteer_capacity:
+        if (
+            event.capacity_mode == Event.CapacityMode.FIXED
+            and approved_count >= event.volunteer_capacity
+        ):
             return Response(
                 {
                     "detail": (
@@ -438,7 +445,7 @@ class AssignCoordinatorView(APIView):
 
     def post(self, request, event_id):
         event = get_object_or_404(
-            Event.objects.select_related("ngo"),
+            Event.objects.select_related("ngo", "coordinator"),
             pk=event_id,
         )
 
@@ -461,8 +468,54 @@ class AssignCoordinatorView(APIView):
             role=User.Role.COORDINATOR,
         )
 
+        previous_coordinator = event.coordinator
+
+        if (
+            previous_coordinator
+            and previous_coordinator.id == coordinator.id
+        ):
+            return Response(
+                {
+                    "message": (
+                        f"{coordinator.username} is already "
+                        "coordinating this event."
+                    ),
+                    "event_id": event.id,
+                    "coordinator": {
+                        "id": coordinator.id,
+                        "username": coordinator.username,
+                    },
+                },
+                status=status.HTTP_200_OK,
+            )
+
+        reason = (request.data.get("reason") or "").strip()
+
+        # Reassigning an event that already has a coordinator requires
+        # a reason, since the previous coordinator is being notified
+        # they were removed - the NGO writes what that reason is.
+        if previous_coordinator and not reason:
+            return Response(
+                {
+                    "detail": (
+                        "A reason is required when reassigning an "
+                        "event that already has a coordinator."
+                    )
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
         event.coordinator = coordinator
         event.save(update_fields=["coordinator"])
+
+        if previous_coordinator:
+            notification_subject.notify(
+                CoordinatorRemoved(
+                    event=event,
+                    previous_coordinator=previous_coordinator,
+                    reason=reason,
+                )
+            )
 
         notification_subject.notify(CoordinatorAssigned(event))
 

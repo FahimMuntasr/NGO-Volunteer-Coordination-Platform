@@ -15,7 +15,10 @@ from .serializers import (
     DonationSerializer,
 )
 
-from notifications.domain_events import DonationReceived
+from notifications.domain_events import (
+    DonationAcknowledged,
+    DonationReceived,
+)
 from notifications.observers import notification_subject
 
 class DonationCreateView(APIView):
@@ -146,6 +149,8 @@ class DonationAllocationUpdateView(APIView):
                 status=status.HTTP_403_FORBIDDEN,
             )
 
+        was_acknowledged = donation.acknowledgement_sent
+
         serializer = DonationAllocationSerializer(
             donation,
             data=request.data,
@@ -154,6 +159,17 @@ class DonationAllocationUpdateView(APIView):
 
         if serializer.is_valid():
             serializer.save()
+
+            # Only notify the donor the first time this donation is
+            # marked acknowledged - not on every subsequent edit to
+            # allocation_details.
+            if (
+                not was_acknowledged
+                and donation.acknowledgement_sent
+            ):
+                notification_subject.notify(
+                    DonationAcknowledged(donation)
+                )
 
             return Response(
                 DonationSerializer(donation).data,

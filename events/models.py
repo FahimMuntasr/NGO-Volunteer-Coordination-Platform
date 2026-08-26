@@ -10,6 +10,10 @@ from volunteering.models import Skill, VolunteerProfile
 
 
 class Event(models.Model):
+    class CapacityMode(models.TextChoices):
+        FIXED = "FIXED", "Fixed capacity"
+        UNLIMITED = "UNLIMITED", "Unlimited"
+
     class Status(models.TextChoices):
         DRAFT = "DRAFT", "Draft"
         OPEN = "OPEN", "Open for Registration"
@@ -45,8 +49,16 @@ class Event(models.Model):
     end_date = models.DateTimeField()
     registration_deadline = models.DateTimeField()
 
+    capacity_mode = models.CharField(
+        max_length=10,
+        choices=CapacityMode.choices,
+        default=CapacityMode.FIXED,
+    )
+
     volunteer_capacity = models.PositiveIntegerField(
-        validators=[MinValueValidator(1)]
+        validators=[MinValueValidator(1)],
+        null=True,
+        blank=True,
     )
 
     required_skills = models.ManyToManyField(
@@ -63,6 +75,16 @@ class Event(models.Model):
 
     def clean(self):
         errors = {}
+
+        if self.capacity_mode == self.CapacityMode.FIXED and self.volunteer_capacity is None:
+            errors["volunteer_capacity"] = (
+                "Volunteer capacity is required when capacity mode is fixed."
+            )
+
+        if self.capacity_mode == self.CapacityMode.UNLIMITED and self.volunteer_capacity is not None:
+            errors["volunteer_capacity"] = (
+                "Volunteer capacity must be empty when capacity mode is unlimited."
+            )
 
         if (
             self.start_date

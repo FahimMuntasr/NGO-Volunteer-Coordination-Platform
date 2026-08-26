@@ -469,7 +469,9 @@ export default function EventDetails() {
 
               <p className="mt-2 font-semibold text-slate-800">
                 {
-                  event.volunteer_capacity
+                  event.capacity_mode === "UNLIMITED"
+                    ? "Unlimited"
+                    : event.volunteer_capacity
                 }{" "}
                 volunteers
               </p>

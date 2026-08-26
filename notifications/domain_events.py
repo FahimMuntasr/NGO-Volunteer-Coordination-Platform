@@ -2,6 +2,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
+    from accounts.models import User
     from certificates.models import Certificate
     from donations.models import Donation
     from events.models import Event, Registration, TeamMembership
@@ -31,8 +32,18 @@ class DonationReceived:
     donation: "Donation"
 
 @dataclass(frozen=True)
+class DonationAcknowledged:
+    donation: "Donation"
+
+@dataclass(frozen=True)
 class CoordinatorAssigned:
     event: "Event"
+
+@dataclass(frozen=True)
+class CoordinatorRemoved:
+    event: "Event"
+    previous_coordinator: "User"
+    reason: str
 
 @dataclass(frozen=True)
 class CertificateIssued:

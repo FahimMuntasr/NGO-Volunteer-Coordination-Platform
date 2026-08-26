@@ -35,8 +35,10 @@ export type CreateEventRequest = {
   start_date: string;
   end_date: string;
   registration_deadline: string;
-  volunteer_capacity: number;
+  capacity_mode: "FIXED" | "UNLIMITED";
+  volunteer_capacity: number | null;
   required_skill_ids?: number[];
+  coordinator_id?: number | null;
 };
 
 export type VerificationResult = {
@@ -170,11 +172,13 @@ Promise<CoordinatorOption[]> {
 export async function assignCoordinator(
   eventId: number,
   coordinatorId: number,
+  reason?: string,
 ) {
   const response = await api.post(
     `/api/events/${eventId}/assign-coordinator/`,
     {
       coordinator_id: coordinatorId,
+      ...(reason ? { reason } : {}),
     },
   );
 

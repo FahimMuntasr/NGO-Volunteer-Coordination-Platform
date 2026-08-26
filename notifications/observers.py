@@ -2,6 +2,7 @@ from abc import ABC, abstractmethod
 
 from .strategies import (
     default_coordinator_strategies,
+    default_donor_strategies,
     default_ngo_administrator_strategies,
     default_volunteer_strategies,
 )
@@ -76,8 +77,14 @@ class CoordinatorNotificationObserver(StrategyDrivenObserver):
         super().__init__(strategies or default_coordinator_strategies())
 
 
+class DonorNotificationObserver(StrategyDrivenObserver):
+    def __init__(self, strategies=None):
+        super().__init__(strategies or default_donor_strategies())
+
+
 notification_subject = NotificationSubject()
 
 notification_subject.attach(VolunteerNotificationObserver())
 notification_subject.attach(NGOAdministratorNotificationObserver())
 notification_subject.attach(CoordinatorNotificationObserver())
+notification_subject.attach(DonorNotificationObserver())

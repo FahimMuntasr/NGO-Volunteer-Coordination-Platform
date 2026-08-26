@@ -126,7 +126,10 @@ class CapacityDecorator(
             .count()
         )
 
-        if approved_count >= event.volunteer_capacity:
+        if (
+            event.capacity_mode == Event.CapacityMode.FIXED
+            and approved_count >= event.volunteer_capacity
+        ):
             raise ValidationError(
                 {
                     "detail": (

@@ -47,6 +47,17 @@ export default function AssignCoordinator() {
     >({});
 
   const [
+    reasons,
+    setReasons,
+  ] =
+    useState<
+      Record<
+        number,
+        string
+      >
+    >({});
+
+  const [
     loading,
     setLoading,
   ] =
@@ -125,6 +136,26 @@ export default function AssignCoordinator() {
       return;
     }
 
+    const currentEvent = events.find(
+      (item) => item.id === eventId,
+    );
+
+    const isReassignment =
+      !!currentEvent?.coordinator &&
+      currentEvent.coordinator !== coordinatorId;
+
+    const reason = (
+      reasons[eventId] ?? ""
+    ).trim();
+
+    if (isReassignment && !reason) {
+      setError(
+        "Please explain why this event is being reassigned - the previous coordinator will see this reason.",
+      );
+
+      return;
+    }
+
     try {
       setWorkingId(
         eventId,
@@ -136,14 +167,24 @@ export default function AssignCoordinator() {
       await assignCoordinator(
         eventId,
         coordinatorId,
+        isReassignment ? reason : undefined,
       );
 
       setEvents(
         await getEvents(),
       );
 
+      setReasons(
+        (current) => ({
+          ...current,
+          [eventId]: "",
+        }),
+      );
+
       setSuccess(
-        "Coordinator assigned successfully.",
+        isReassignment
+          ? "Coordinator changed successfully."
+          : "Coordinator assigned successfully.",
       );
 
     } catch (err) {
@@ -307,11 +348,53 @@ export default function AssignCoordinator() {
                     >
                       {workingId ===
                       event.id
-                        ? "Assigning..."
+                        ? "Working..."
+                        : event.coordinator
+                        ? "Change"
                         : "Assign"}
                     </button>
 
                   </div>
+
+
+                  {event.coordinator &&
+                    selections[event.id] &&
+                    selections[event.id] !==
+                      event.coordinator && (
+
+                      <div className="mt-3">
+
+                        <label className="text-sm font-semibold text-slate-700">
+                          Reason for reassignment
+                        </label>
+
+                        <p className="mt-1 text-xs text-slate-500">
+                          Shown to {event.coordinator_username}{" "}
+                          when they're removed from this event -
+                          e.g. workload balancing, or the new
+                          coordinator being closer to the venue.
+                        </p>
+
+                        <textarea
+                          rows={3}
+                          value={
+                            reasons[event.id] ?? ""
+                          }
+                          onChange={(e) =>
+                            setReasons(
+                              (current) => ({
+                                ...current,
+                                [event.id]:
+                                  e.target.value,
+                              }),
+                            )
+                          }
+                          className="mt-2 w-full rounded-xl border border-slate-300 bg-[#eef3f7] p-3"
+                        />
+
+                      </div>
+
+                    )}
 
                 </article>
 
