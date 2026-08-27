@@ -11,13 +11,6 @@ class CertificateService:
 
     @staticmethod
     def generate_certificate(registration):
-        """
-        Create the persistent certificate record.
-
-        The PDF itself is generated on demand instead
-        of being permanently stored on the server's
-        local filesystem.
-        """
 
         certificate, _ = (
             Certificate.objects.get_or_create(
@@ -31,18 +24,9 @@ class CertificateService:
         return certificate
 
     @staticmethod
-    def generate_certificate_document(
-        certificate,
-    ):
-        """
-        Generate the certificate PDF in memory.
+    def generate_certificate_document(certificate):
 
-        Uses the existing Factory Method implementation.
-        """
-
-        creator = (
-            ParticipationCertificateCreator()
-        )
+        creator = (ParticipationCertificateCreator())
 
         return creator.create_document(
             {
@@ -67,9 +51,7 @@ class AttendanceReportService:
             .all()
         )
 
-        creator = (
-            AttendanceReportCreator()
-        )
+        creator = (AttendanceReportCreator())
 
         return creator.create_document(
             {
