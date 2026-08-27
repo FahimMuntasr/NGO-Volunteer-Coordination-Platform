@@ -74,9 +74,7 @@ class EventHoursService:
 
         duration = event.end_date - event.start_date
 
-        seconds = Decimal(
-            str(duration.total_seconds())
-        )
+        seconds = Decimal(str(duration.total_seconds()))
 
         hours = (
             seconds / Decimal("3600")
@@ -93,11 +91,7 @@ class EventHoursService:
 # =========================================
 class VolunteerProgressService:
 
-    def process_volunteer(
-        self,
-        registration,
-        event_hours,
-    ):
+    def process_volunteer(self,registration,event_hours):
 
         volunteer = registration.volunteer
 
@@ -119,18 +113,14 @@ class VolunteerProgressService:
                 ]
             )
 
-            CertificateService.generate_certificate(
-                registration
-            )
+            CertificateService.generate_certificate(registration)
 
             certificate_generated = True
 
         else:
             registration.hours_earned = Decimal("0.00")
 
-        registration.status = (
-            Registration.Status.COMPLETED
-        )
+        registration.status = (Registration.Status.COMPLETED)
 
         registration.save(
             update_fields=[

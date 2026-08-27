@@ -26,26 +26,16 @@ class EventCompletionFacade:
     def complete_event(self, event, user):
 
         # Step 1: Validate event
-        self.validation.validate_event(
-            event,
-            user,
-        )
+        self.validation.validate_event(event,user)
 
         # Step 2: Get approved registrations
-        registrations = (
-            self.attendance
-            .get_approved_registrations(event)
-        )
+        registrations = (self.attendance.get_approved_registrations(event))
 
         # Step 3: Check attendance
-        self.attendance.check_attendance(
-            registrations
-        )
+        self.attendance.check_attendance(registrations)
 
         # Step 4: Calculate event hours
-        event_hours = self.hours.calculate_hours(
-            event
-        )
+        event_hours = self.hours.calculate_hours(event)
 
         certificates_generated = 0
         completed_registrations = 0
@@ -54,8 +44,7 @@ class EventCompletionFacade:
         for registration in registrations:
 
             certificate_generated = (
-                self.volunteer_progress
-                .process_volunteer(
+                self.volunteer_progress.process_volunteer(
                     registration,
                     event_hours,
                 )
@@ -67,9 +56,7 @@ class EventCompletionFacade:
             completed_registrations += 1
 
         # Step 6: Complete event
-        self.event_status.complete_event(
-            event
-        )
+        self.event_status.complete_event(event)
 
         return {
             "message": "Event completed successfully.",
