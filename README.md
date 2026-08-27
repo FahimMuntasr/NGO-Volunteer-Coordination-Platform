@@ -260,6 +260,23 @@ Examples:
 
 ---
 
+## Decorator Pattern
+
+Used for dynamically extending donation acknowledgement content without modifying the base acknowledgement class.
+
+The implementation includes:
+
+- `DonationAcknowledgement` — Component interface
+- `BasicDonationAcknowledgement` — Concrete Component
+- `DonationAcknowledgementDecorator` — Base Decorator
+- `DonorDetailsDecorator` — Adds donor information
+- `NGOInformationDecorator` — Adds NGO information
+- `AllocationDetailsDecorator` — Adds donation allocation details
+
+The decorators wrap the base acknowledgement and add optional information at runtime.
+
+---
+
 ## Factory Method Pattern
 
 Used for document generation.
