@@ -11,7 +11,7 @@ from .products import (
 class DocumentCreator(ABC):
 
     @abstractmethod
-    def factory_method(self) -> DocumentGenerator:
+    def factory_method(self):
         pass
 
     def create_document(self, context):
@@ -23,7 +23,7 @@ class DocumentCreator(ABC):
 
 class ParticipationCertificateCreator(DocumentCreator):
 
-    def factory_method(self) -> DocumentGenerator:
+    def factory_method(self):
         return ParticipationCertificateGenerator()
 
 
@@ -31,5 +31,5 @@ class ParticipationCertificateCreator(DocumentCreator):
 
 class AttendanceReportCreator(DocumentCreator):
 
-    def factory_method(self) -> DocumentGenerator:
+    def factory_method(self):
         return AttendanceReportGenerator()

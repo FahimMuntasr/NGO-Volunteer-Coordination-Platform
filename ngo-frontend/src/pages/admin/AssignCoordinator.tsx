@@ -344,7 +344,11 @@ export default function AssignCoordinator() {
                           event.id,
                         )
                       }
-                      className="rounded-xl bg-blue-600 px-6 py-3 font-semibold text-white disabled:opacity-50"
+                      className={`rounded-xl px-6 py-3 font-semibold text-white disabled:opacity-50 ${
+                        event.coordinator
+                          ? "bg-emerald-600 hover:bg-emerald-700"
+                          : "bg-blue-600 hover:bg-blue-700"
+                      }`}
                     >
                       {workingId ===
                       event.id

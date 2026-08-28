@@ -8,8 +8,9 @@ from accounts.models import User
 from .models import Event
 
 from .builders import (
-    DraftEventBuilder,
     EventDirector,
+    GeneralEventBuilder,
+    SkillBasedEventBuilder,
 )
 
 
@@ -42,7 +43,13 @@ class RealEventService(AbstractEventService):
         )
 
         director = EventDirector()
-        director.set_builder(DraftEventBuilder())
+
+        # The concrete builder represents the event type: general events
+        # have no required skills, while skill-based events include them.
+        if required_skills:
+            director.set_builder(SkillBasedEventBuilder())
+        else:
+            director.set_builder(GeneralEventBuilder())
 
         coordinator = event_data.get("coordinator")
 
@@ -66,30 +73,30 @@ class RealEventService(AbstractEventService):
             ),
         )
 
-        # Pick the recipe that matches what was supplied: whether a
-        # coordinator was assigned up front and whether required skills
-        # were specified. The director/builder pair does not change -
-        # only the sequence of steps invoked on it does.
-        if coordinator and required_skills:
-            return director.build_event_with_coordinator(
-                coordinator=coordinator,
+        # The concrete builder represents the selected event type; the
+        # Director then selects the construction recipe based on the
+        # optional coordinator configuration. Capacity remains an
+        # independent customization inside every recipe.
+        if required_skills and coordinator:
+            return director.build_event_with_skills_and_coordinator(
                 required_skills=required_skills,
-                **common_kwargs,
-            )
-
-        if coordinator:
-            return director.build_assigned_event_without_skills(
                 coordinator=coordinator,
                 **common_kwargs,
             )
 
         if required_skills:
-            return director.build_full_event(
+            return director.build_event_with_skills(
                 required_skills=required_skills,
                 **common_kwargs,
             )
 
-        return director.build_event_without_skills(**common_kwargs)
+        if coordinator:
+            return director.build_event_with_coordinator(
+                coordinator=coordinator,
+                **common_kwargs,
+            )
+
+        return director.build_event(**common_kwargs)
 
 
 # Proxy Subject

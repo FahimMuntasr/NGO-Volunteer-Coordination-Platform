@@ -1,20 +1,16 @@
 from abc import ABC, abstractmethod
 
-from .strategies import (
-    default_coordinator_strategies,
-    default_donor_strategies,
-    default_ngo_administrator_strategies,
-    default_volunteer_strategies,
-)
+from .strategies import NotificationContext
 
-# OBSERVER INTERFACE
+
+#OBSERVER INTERFACE
 class Observer(ABC):
     @abstractmethod
     def update(self, domain_event):
         pass
 
 
-# SUBJECT INTERFACE
+#SUBJECT INTERFACE
 class Subject(ABC):
     @abstractmethod
     def attach(self, observer):
@@ -29,9 +25,24 @@ class Subject(ABC):
         pass
 
 
-# CONCRETE SUBJECT
+#CONCRETE OBSERVER
+class VolunteerNotificationObserver(Observer):
+    def __init__(self, volunteer):
+        self.volunteer = volunteer
+        self.context = NotificationContext()
 
-class NotificationSubject(Subject):
+    def update(self, domain_event):
+        # The Observer does not choose the strategy. It delegates the
+        # notification to the Strategy Context, which selects the
+        # concrete strategy from the notification type.
+        self.context.execute(
+            domain_event,
+            recipient=self.volunteer.user,
+        )
+
+
+#CONCRETE SUBJECT
+class VolunteerNotificationSubject(Subject):
     def __init__(self):
         self._observers = []
 
@@ -48,43 +59,19 @@ class NotificationSubject(Subject):
             observer.update(domain_event)
 
 
-# CONCRETE OBSERVERS
+def create_volunteer_notification_subject(volunteers):
+    """Create a Subject and register the supplied volunteer observers."""
+    subject = VolunteerNotificationSubject()
 
-class StrategyDrivenObserver(Observer):
-    def __init__(self, strategies):
-        self._strategies = list(strategies)
-
-    def update(self, domain_event):
-        for strategy in self._strategies:
-            if strategy.handles(domain_event):
-                strategy.notify(domain_event)
-
-
-class VolunteerNotificationObserver(StrategyDrivenObserver):
-    def __init__(self, strategies=None):
-        super().__init__(strategies or default_volunteer_strategies())
-
-
-class NGOAdministratorNotificationObserver(StrategyDrivenObserver):
-    def __init__(self, strategies=None):
-        super().__init__(
-            strategies or default_ngo_administrator_strategies()
+    for volunteer in volunteers:
+        subject.attach(
+            VolunteerNotificationObserver(volunteer)
         )
 
-
-class CoordinatorNotificationObserver(StrategyDrivenObserver):
-    def __init__(self, strategies=None):
-        super().__init__(strategies or default_coordinator_strategies())
+    return subject
 
 
-class DonorNotificationObserver(StrategyDrivenObserver):
-    def __init__(self, strategies=None):
-        super().__init__(strategies or default_donor_strategies())
-
-
-notification_subject = NotificationSubject()
-
-notification_subject.attach(VolunteerNotificationObserver())
-notification_subject.attach(NGOAdministratorNotificationObserver())
-notification_subject.attach(CoordinatorNotificationObserver())
-notification_subject.attach(DonorNotificationObserver())
+def notify_volunteers(volunteers, domain_event):
+    """Build the volunteer observer list, then notify through Subject."""
+    subject = create_volunteer_notification_subject(volunteers)
+    subject.notify(domain_event)

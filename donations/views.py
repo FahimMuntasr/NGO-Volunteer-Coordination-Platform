@@ -19,7 +19,7 @@ from notifications.domain_events import (
     DonationAcknowledged,
     DonationReceived,
 )
-from notifications.observers import notification_subject
+from notifications.strategies import NotificationContext
 
 class DonationCreateView(APIView):
     permission_classes = [IsAuthenticated]
@@ -46,7 +46,7 @@ class DonationCreateView(APIView):
                 donor_name=donor_name,
             )
 
-            notification_subject.notify(DonationReceived(donation))
+            NotificationContext().execute(DonationReceived(donation))
 
             return Response(
                 DonationSerializer(donation).data,
@@ -167,7 +167,7 @@ class DonationAllocationUpdateView(APIView):
                 not was_acknowledged
                 and donation.acknowledgement_sent
             ):
-                notification_subject.notify(
+                NotificationContext().execute(
                     DonationAcknowledged(donation)
                 )
 
