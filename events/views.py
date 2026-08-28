@@ -36,7 +36,8 @@ from notifications.domain_events import (
     RegistrationStatusChanged,
     TeamMemberAssigned,
 )
-from notifications.observers import notification_subject
+from notifications.observers import notify_volunteers
+from notifications.strategies import NotificationContext
 
 from events.registration_decorators import (
     BasicRegistrationService,
@@ -129,7 +130,7 @@ class EventCreateView(CreateAPIView):
         event = proxy.create_event(user, event_data)
 
         if event.coordinator_id:
-            notification_subject.notify(CoordinatorAssigned(event))
+            NotificationContext().execute(CoordinatorAssigned(event))
 
         headers = self.get_success_headers(serializer.data)
         return Response(
@@ -206,10 +207,9 @@ class EventUpdateView(UpdateAPIView):
             and event.status
             == Event.Status.OPEN
         ):
-            notification_subject.notify(
-                EventPublished(
-                    event
-                )
+            notify_volunteers(
+                VolunteerProfile.objects.select_related("user"),
+                EventPublished(event),
             )
 
 class EventRegistrationView(APIView):
@@ -260,7 +260,7 @@ class EventRegistrationView(APIView):
         event,
         )
 
-        notification_subject.notify(
+        NotificationContext().execute(
             RegistrationCreated(registration)
         )
 
@@ -367,7 +367,7 @@ class RegistrationApproveView(APIView):
             ]
         )
 
-        notification_subject.notify(
+        NotificationContext().execute(
             RegistrationStatusChanged(registration)
         )
 
@@ -426,7 +426,7 @@ class RegistrationRejectView(APIView):
             ]
         )
 
-        notification_subject.notify(
+        NotificationContext().execute(
             RegistrationStatusChanged(registration)
         )
 
@@ -509,7 +509,7 @@ class AssignCoordinatorView(APIView):
         event.save(update_fields=["coordinator"])
 
         if previous_coordinator:
-            notification_subject.notify(
+            NotificationContext().execute(
                 CoordinatorRemoved(
                     event=event,
                     previous_coordinator=previous_coordinator,
@@ -517,7 +517,7 @@ class AssignCoordinatorView(APIView):
                 )
             )
 
-        notification_subject.notify(CoordinatorAssigned(event))
+        NotificationContext().execute(CoordinatorAssigned(event))
 
         return Response(
             {
@@ -679,7 +679,7 @@ class AddTeamMemberView(APIView):
             assigned_task=assigned_task,
         )
 
-        notification_subject.notify(
+        NotificationContext().execute(
             TeamMemberAssigned(membership)
         )
 
@@ -789,8 +789,9 @@ class EventOpenView(APIView):
             update_fields=["status"]
         )
 
-        notification_subject.notify(
-            EventPublished(event)
+        notify_volunteers(
+            VolunteerProfile.objects.select_related("user"),
+            EventPublished(event),
         )
 
         return Response(

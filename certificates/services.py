@@ -5,7 +5,7 @@ from .creators import (
 from .models import Certificate
 
 from notifications.domain_events import CertificateIssued
-from notifications.observers import notification_subject
+from notifications.strategies import NotificationContext
 
 class CertificateService:
 
@@ -19,7 +19,7 @@ class CertificateService:
             )
         )
 
-        notification_subject.notify(CertificateIssued(certificate))
+        NotificationContext().execute(CertificateIssued(certificate))
 
         return certificate
 
